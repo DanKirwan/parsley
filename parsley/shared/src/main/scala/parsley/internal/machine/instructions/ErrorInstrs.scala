@@ -9,11 +9,49 @@ import parsley.internal.errors.{CaretWidth, RigidCaret, UnexpectDesc}
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
 import parsley.internal.machine.errors.EmptyError
+import parsley.internal.machine.stacks.ErrorStack
+import parsley.internal.machine.stacks.Stack.StackExt
+
+/**
+  * This is used at the beginning of a new choice option 
+  * It will merge the existing errors in live into the choice accumulator
+  *
+  */
+private [internal] final object ClearLiveError extends Instr {
+
+    override def apply(ctx: Context): Unit = {
+        ctx.errorToAccumulator()
+        ctx.inc()
+    }
+    // $COVERAGE-OFF$
+    override def toString: String = s"ClearLiveError";
+    // $COVERAGE-ON$
+
+}
+
+/**
+  * This is used once all choices are completed and we want to leave the choice operator 
+  * with all errors merged
+  *
+  */
+private [internal] final object ApplyErrorAccumulator extends Instr {
+    override def apply(ctx: Context): Unit = {
+        ctx.applyChoiceAccumulator()
+        ctx.inc()
+    }
+    // $COVERAGE-OFF$
+    override def toString: String = s"ApplyErrorAccumulator";
+    // $COVERAGE-ON$
+
+}
+
 
 private [internal] final class RelabelHints(labels: Iterable[String]) extends Instr {
     private [this] val isHide: Boolean = labels.isEmpty
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
+        // TOOD 
+        // if hiding - remove everythig in hints? - relies on knowing where handler takes hints? - amend?
         // if this was a hide, pop the hints if possible
         // this is desirable so that hide is _very_ aggressive with labelling:
         // whitespaces.hide should say nothing, but digits.label("integer") should give digit as a hint if one is parsed, not integer
@@ -36,15 +74,15 @@ private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) ext
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         // this has the effect of relabelling all hints since the start of the label combinator
-        ctx.restoreHints()
-        ctx.errs.error = ctx.useHints {
-            // only use the label if the error message is generated at the same offset
-            // as the check stack saved for the start of the `label` combinator.
-            ctx.errs.error.label(labels, ctx.handlers.check)
-        }
+        // ctx.restoreHints()
+        // ctx.errs.error = ctx.useHints {
+        //     // only use the label if the error message is generated at the same offset
+        //     // as the check stack saved for the start of the `label` combinator.
+        //     ctx.errs.error.label(labels, ctx.handlers.check)
+        // }
 
         // TODO (Dan) replace with context calls 
-        ctx.errorAccumulator = ctx.errorAccumulator.map(e => e.label(labels, ctx.handlers.check))
+        ctx.liveError = ctx.liveError.map(e => e.label(labels, ctx.handlers.check))
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -57,9 +95,9 @@ private [internal] object HideHints extends Instr {
     override def apply(ctx: Context): Unit = {
         // TODO (Dan) when do we want hide hints vs HideErrorAndFail
         ensureRegularInstruction(ctx)
-        ctx.popHints()
-        ctx.mergeHints()
-        ctx.errorAccumulator = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
+        // ctx.popHints()
+        // ctx.mergeHints()
+        ctx.liveError = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
 
         ctx.handlers = ctx.handlers.tail
         ctx.inc()
@@ -74,9 +112,10 @@ private [internal] object HideErrorAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         // TODO (Dan) figure out difference between this and above and why we need the extra instructions 
         ensureHandlerInstruction(ctx)
+        // TODO (Dan) figure out my equivalent of restore hints
         ctx.restoreHints()
-        ctx.errs.error = new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0)
-        ctx.errorAccumulator = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
+        // ctx.errs.error = new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0)
+        ctx.liveError = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -88,9 +127,19 @@ private [internal] object HideErrorAndFail extends Instr {
 private [internal] object ErrorToHints extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
+        // TODO (Dan) why does this remove a handler?
         ctx.handlers = ctx.handlers.tail
-        ctx.addErrorToHintsAndPop()
+        // ctx.addErrorToHintsAndPop()
+        
+        
+        // if(ctx.liveError.isDefined) {
+        //     // TODO (Dan) this if shouldn't be here - figure out how to change instruction set semantics
+        //     assert(ctx.liveError.isDefined, "Cannot send error to hints if no error has been thrown")
+        //     ctx.errorToAccumulator();
+            
+        // }
         ctx.inc()
+
     }
 
     // $COVERAGE-OFF$
@@ -101,10 +150,23 @@ private [internal] object ErrorToHints extends Instr {
 private [internal] object MergeErrorsAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
+        // TODO (Dan) why does this remove a handler?
         ctx.handlers = ctx.handlers.tail
-        val err2 = ctx.errs.error
-        ctx.errs = ctx.errs.tail
-        ctx.errs.error = ctx.errs.error.merge(err2)
+        // val err2 = ctx.errs.error
+        // ctx.errs = ctx.errs.tail
+        // ctx.errs.error = ctx.errs.error.merge(err2)
+
+
+
+        // We can't know here if there will be existing errors to merge (In the case of a jump table) 
+        // As if we've hit the first item of the jump table we would have to have pushed a different handler
+        // TODO (Dan) look into whether this is a bad idea
+
+        // ctx.applyChoiceAccumulator();
+       
+
+
+    
         ctx.fail()
     }
 
@@ -117,7 +179,8 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.errs.error = ctx.errs.error.withReason(reason, ctx.handlers.check)
-        ctx.errorAccumulator = ctx.errorAccumulator.map(e => e.withReason(reason, ctx.handlers.check))
+        ctx.liveError = ctx.liveError.map(e => e.withReason(reason, ctx.handlers.check))
+        // Why does this remove a handler?
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -127,13 +190,14 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
     // $COVERAGE-ON$
 }
 
+
 private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.restoreHints() //TODO: verify this is ok; it feels more right than the restore on the labelling
         ctx.handlers = ctx.handlers.tail
         ctx.errs.error = ctx.errs.error.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col)
-        ctx.errorAccumulator = ctx.errorAccumulator.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
+        ctx.liveError = ctx.liveError.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
         ctx.states = ctx.states.tail
         ctx.fail()
     }
@@ -153,6 +217,8 @@ private [internal] object EntrenchAndFail extends Instr {
         ensureHandlerInstruction(ctx)
         ctx.handlers = ctx.handlers.tail
         ctx.errs.error = ctx.errs.error.entrench
+        // TODO (Dan) do we need to do anything with accumulator errors
+        ctx.liveError = ctx.liveError.map(e => e.entrench)
         ctx.fail()
     }
 
@@ -166,6 +232,8 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
         ensureHandlerInstruction(ctx)
         ctx.handlers = ctx.handlers.tail
         ctx.errs.error = ctx.errs.error.dislodge(n)
+        // TODO (Dan) do we need to do anything with accumulator errors
+        ctx.liveError = ctx.liveError.map(e => e.dislodge(n))
         ctx.fail()
     }
 

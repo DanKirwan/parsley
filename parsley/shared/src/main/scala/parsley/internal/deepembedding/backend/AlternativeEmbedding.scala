@@ -62,11 +62,12 @@ private [deepembedding] final class Choice[A](private [backend] val alt1: Strict
     }
 
     override def codeGen[M[_, +_]: ContOps, R](producesResults: Boolean)(implicit instrs: InstrBuffer, state: CodeGenState): M[R, Unit] = {
-        this.tablify match {
-            // If the tablified list is single element (or the next is None), that implies that this should be generated as normal!
-            case (_ :: Nil) | (_ :: (_, None) :: Nil) => codeGenChain(alt1, alt2, alts.iterator, producesResults)
-            case tablified => codeGenJumpTable(tablified, producesResults)
-        }
+        // this.tablify match {
+        //     // If the tablified list is single element (or the next is None), that implies that this should be generated as normal!
+        //     case (_ :: Nil) | (_ :: (_, None) :: Nil) => codeGenChain(alt1, alt2, alts.iterator, producesResults)
+        //     case tablified => codeGenJumpTable(tablified, producesResults)
+        // }
+        codeGenChain(alt1, alt2, alts.iterator, producesResults)
     }
 
     private def tablify: List[(StrictParsley[_], Option[(Char, Iterable[ExpectItem], Int, Boolean)])] = {
@@ -112,6 +113,8 @@ private [backend] object Choice {
             instrs += new instructions.Label(handler)
             generateHandler |> {
                 instrs += new instructions.Label(skip)
+                instrs += instructions.ApplyErrorAccumulator
+
             }
         }
     }
@@ -126,6 +129,7 @@ private [backend] object Choice {
             instrs += new instructions.Label(handler)
             generateHandler |> {
                 instrs += new instructions.Label(skip)
+                instrs += instructions.ApplyErrorAccumulator
             }
         }
     }
@@ -160,12 +164,14 @@ private [backend] object Choice {
         val merge = state.getLabel(instructions.MergeErrorsAndFail)
         p match {
             case Atomic(u) => scopedState(u, producesResults) {
+                instrs += instructions.ClearLiveError
                 instrs += new instructions.RestoreAndPushHandler(merge)
                 rest |> {
                     instrs += instructions.ErrorToHints
                 }
             }
             case u => scopedCheck(u, producesResults) {
+                instrs += instructions.ClearLiveError
                 instrs += new instructions.Catch(merge)
                 rest |> {
                     instrs += instructions.ErrorToHints

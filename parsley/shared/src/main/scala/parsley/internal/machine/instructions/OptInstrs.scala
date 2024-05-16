@@ -15,6 +15,7 @@ import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
 import parsley.internal.machine.errors.{EmptyHints, ExpectedError}
 import parsley.internal.machine.stacks.ErrorStack
+import parsley.internal.machine.stacks.Stack.StackExt
 
 private [internal] final class Lift1(f: Any => Any) extends Instr {
     override def apply(ctx: Context): Unit = {
@@ -59,8 +60,9 @@ private [internal] final class RecoverWith[A](x: A) extends Instr {
         ensureHandlerInstruction(ctx)
         ctx.restoreHints() // This must be before adding the error to hints
         ctx.catchNoConsumed(ctx.handlers.check) {
+            ctx.errorToAccumulator();
             ctx.handlers = ctx.handlers.tail
-            ctx.addErrorToHintsAndPop()
+            // ctx.addErrorToHintsAndPop()
             ctx.pushAndContinue(x)
         }
     }
@@ -69,13 +71,22 @@ private [internal] final class RecoverWith[A](x: A) extends Instr {
     // $COVERAGE-ON$
 }
 
+/**
+  * This gets called when we know we have a pure choice which will always succed 
+  * It means we can move all existing errors across to the accumulator 
+  * and know that theres no errors that occur at the point
+  *
+  * @param x
+  */
 private [internal] final class AlwaysRecoverWith[A](x: A) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.restoreState()
-        ctx.restoreHints() // This must be before adding the error to hints
+        // ctx.restoreHints() // This must be before adding the error to hints
         ctx.handlers = ctx.handlers.tail
-        ctx.addErrorToHintsAndPop()
+        // ctx.addErrorToHintsAndPop()
+        
+        ctx.errorToAccumulator();
         ctx.good = true
         ctx.pushAndContinue(x)
     }
@@ -117,7 +128,8 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
         // TODO (Dan) make sure adding the error here is fine
         val newErr = new ExpectedError(ctx.offset, ctx.line, ctx.col, errorItems, unexpectedWidth = size);
         ctx.errs = new ErrorStack(newErr, ctx.errs)
-        ctx.errorAccumulator = ctx.errorAccumulator.map(e => e.merge(newErr)).orElse(Option(newErr))
+        assert(ctx.liveError.isEmpty, "Cannot do jump table with existing errors")
+        ctx.choiceAccumulator =  Some(newErr)
         ctx.pushHandler(merge)
     }
 

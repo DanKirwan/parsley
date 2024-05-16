@@ -1,3 +1,4 @@
+import parsley.combinator
 import parsley.Parsley, Parsley.*
 import parsley.errors.combinator.*
 import parsley.character.*
@@ -37,7 +38,7 @@ allImpure.parse("a")
 
 val noneImpure = ((atomic(char('a') ~> parsley.Parsley.empty)) | char('b') | unit) ~> char('c')
 
-noneImpure.parse("a")
+// noneImpure.parse("a")
 
 
 
@@ -61,3 +62,15 @@ labels.parse("b");
 
 
 (char('a') | unexpected("bee") ? "something less cute").parse("b")
+
+
+
+
+// Example showing amend needs a stack
+val qarser = combinator.optional(char('b').label("b")) ~> amend(char('a') ~> digit).label("foo")
+
+
+qarser.parse("aa")
+
+
+(char('a') <|> (Parsley.empty ? "something, at least")).parse("b")
