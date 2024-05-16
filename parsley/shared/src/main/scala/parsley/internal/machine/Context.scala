@@ -53,6 +53,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     /** Amount of indentation to apply to debug combinators output */
     private [machine] var debuglvl: Int = 0
 
+    private [machine] var errorAccumulator: Option[DefuncError] = None
+
     // NEW ERROR MECHANISMS
     private [machine] var hints: DefuncHints = EmptyHints
     private var hintsValidOffset = 0
@@ -74,11 +76,17 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         val hintFrame = this.handlers
         if (hintFrame.hintOffset == offset) this.hints = hintFrame.hints.merge(this.hints)
     }
-    private [machine] def replaceHint(labels: Iterable[String]): Unit = hints = hints.rename(labels)
+    private [machine] def replaceHint(labels: Iterable[String]): Unit = {
+        hints = hints.rename(labels)
+        errorAccumulator = errorAccumulator.map(e => e.label(labels, handlers.check))
+    }
+
     private [machine] def popHints(): Unit = hints = hints.pop
     /* ERROR RELABELLING END */
 
     def invalidateHints(): Unit = {
+        println("invalidating hints")
+        println(s" hints: $hintsValidOffset, actual: $offset")
         if (hintsValidOffset < offset) {
             hints = EmptyHints
             hintsValidOffset = offset
@@ -91,9 +99,14 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             // If our new hints have taken place further in the input stream, then they must invalidate the old ones
             invalidateHints()
             hints = hints.addError(err)
-        }
+        } else if(err.presentationOffset > offset) {
+            hints = EmptyHints
+            hints = hints.addError(err)
+            hintsValidOffset = err.presentationOffset
+        } 
     }
     private [machine] def addErrorToHintsAndPop(): Unit = {
+        println(s"adding error to hints ${errs.error}")
         this.addErrorToHints(errs.error)
         this.errs = this.errs.tail
     }
@@ -137,6 +150,10 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     @tailrec private def go[Err: ErrorBuilder, A](): Result[Err, A] = {
         //println(pretty)
         if (running) { // this is the likeliest branch, so should be executed with fewest comparisons
+            print("Running New Inst: ")
+            println(instrs(pc))
+
+            println(hints)
             instrs(pc)(this)
             go[Err, A]()
         }
@@ -153,6 +170,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             assert(handlers.isEmpty, "there must be no more handlers on end of parse")
             assert(states.isEmpty, "there must be no residual states left at end of parse")
             Failure(errs.error.asParseError.format(sourceFile))
+            Failure(errorAccumulator.get.asParseError.format(sourceFile))
         }
     }
 
@@ -185,13 +203,28 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         }
     }
 
-    private [machine] def pushError(err: DefuncError): Unit = this.errs = new ErrorStack(this.useHints(err), this.errs)
+    private [machine] def pushError(err: DefuncError): Unit = {
+        // println(this.pretty)
+        // println(err)
+
+        this.errorAccumulator = errorAccumulator.map(e => e.merge(err)).orElse(Option(err))
+
+        // println(errorAccumulator)
+        this.errs = new ErrorStack(this.useHints(err), this.errs)
+        // println("After Error added: ")
+        // println(this.pretty)
+        // println("_____")
+    }
     private [machine] def useHints(err: DefuncError): DefuncError = {
+        println(s"$hintsValidOffset - ${err.presentationOffset}");
+        println(hints)
         if (hintsValidOffset == err.presentationOffset) err.withHints(hints)
-        else {
+        else if(err.presentationOffset > hintsValidOffset) {
             hintsValidOffset = err.presentationOffset
             hints = EmptyHints
             err
+        } else {
+            new ExpectedError(offset, line, col, hints.getExpectedForOffset(offset), 1 )
         }
     }
 

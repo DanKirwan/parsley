@@ -42,6 +42,9 @@ private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) ext
             // as the check stack saved for the start of the `label` combinator.
             ctx.errs.error.label(labels, ctx.handlers.check)
         }
+
+        // TODO (Dan) replace with context calls 
+        ctx.errorAccumulator = ctx.errorAccumulator.map(e => e.label(labels, ctx.handlers.check))
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -52,9 +55,12 @@ private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) ext
 
 private [internal] object HideHints extends Instr {
     override def apply(ctx: Context): Unit = {
+        // TODO (Dan) when do we want hide hints vs HideErrorAndFail
         ensureRegularInstruction(ctx)
         ctx.popHints()
         ctx.mergeHints()
+        ctx.errorAccumulator = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
+
         ctx.handlers = ctx.handlers.tail
         ctx.inc()
     }
@@ -66,9 +72,11 @@ private [internal] object HideHints extends Instr {
 // FIXME: Gigaparsec points out the hints aren't being used here, I believe they should be!
 private [internal] object HideErrorAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
+        // TODO (Dan) figure out difference between this and above and why we need the extra instructions 
         ensureHandlerInstruction(ctx)
         ctx.restoreHints()
         ctx.errs.error = new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0)
+        ctx.errorAccumulator = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -109,6 +117,7 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.errs.error = ctx.errs.error.withReason(reason, ctx.handlers.check)
+        ctx.errorAccumulator = ctx.errorAccumulator.map(e => e.withReason(reason, ctx.handlers.check))
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -124,6 +133,7 @@ private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
         ctx.restoreHints() //TODO: verify this is ok; it feels more right than the restore on the labelling
         ctx.handlers = ctx.handlers.tail
         ctx.errs.error = ctx.errs.error.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col)
+        ctx.errorAccumulator = ctx.errorAccumulator.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
         ctx.states = ctx.states.tail
         ctx.fail()
     }

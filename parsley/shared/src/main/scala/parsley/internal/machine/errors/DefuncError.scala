@@ -121,6 +121,8 @@ private [parsley] sealed abstract class DefuncError {
       * @return a lexical error message
       */
     private [machine] def markAsLexical(offset: Int): DefuncError
+
+    override def toString(): String = s"(${this.getClass().getSimpleName()} -> P${presentationOffset}, U${underlyingOffset})"
 }
 // These are not covered by coverage because they are all inlined
 private [errors] object DefuncError {
