@@ -96,3 +96,15 @@ lookAhead("ab").parse("ac")
 
 
 ('a' <|> notFollowedBy(digit) *> 'c' <|> 'b').parse("d")
+
+def errorMaker(n: Int, msg: String) = atomic(combinator.exactly(n, 'a') *> ('b' <|> fail(msg)))
+val pError =   errorMaker(2, "small")  | amend(errorMaker(3, "big")) 
+
+pError.parse("a" * 4)
+
+
+
+val aDigit = amend('a' ~> digit)
+val farser = combinator.optional('b'.label("b")) ~> aDigit.label("foo")
+
+farser.parse("aa")

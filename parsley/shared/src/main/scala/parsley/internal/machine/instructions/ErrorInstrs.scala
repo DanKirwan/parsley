@@ -202,7 +202,7 @@ private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
         ensureHandlerInstruction(ctx)
         ctx.handlers = ctx.handlers.tail
         ctx.liveError = ctx.liveError.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
-        // ctx.popAndMergeErrors()
+        ctx.popAndMergeErrors()
         ctx.states = ctx.states.tail
         ctx.fail()
     }

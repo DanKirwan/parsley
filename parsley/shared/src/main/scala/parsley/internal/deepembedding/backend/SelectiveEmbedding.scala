@@ -79,10 +79,10 @@ private [backend] sealed abstract class FilterLike[A, B] extends StrictParsley[B
     protected def instr(handler: Int, jumpLabel: Int): instructions.Instr
 
     final override def codeGen[M[_, +_]: ContOps, R](producesResults: Boolean)(implicit instrs: InstrBuffer, state: CodeGenState): M[R, Unit] = {
-        val handler1 = state.getLabel(instructions.PopStateAndFail)
+        val handler1 = state.getLabel(instructions.PopStateAndErrorsAndFail)
         val handler2 = state.getLabel(instructions.AmendAndFail(false))
         val jumpLabel = state.freshLabel()
-        instrs += new instructions.PushHandlerAndState(handler1)
+        instrs += new instructions.PushHandlerAndStateAndErrors(handler1)
         suspend(p.codeGen[M, R](producesResults = true)) >> {
             instrs += instr(handler2, jumpLabel)
             suspend(err.codeGen[M, R](producesResults = true)) |> {

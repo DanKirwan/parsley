@@ -64,6 +64,19 @@ private [internal] object PopStateAndFail extends Instr {
     // $COVERAGE-ON$
 }
 
+private [internal] object PopStateAndErrorsAndFail extends Instr {
+    override def apply(ctx: Context): Unit = {
+        ensureHandlerInstruction(ctx)
+        ctx.handlers = ctx.handlers.tail
+        ctx.states = ctx.states.tail
+        ctx.popAndMergeErrors()
+        ctx.fail()
+    }
+    // $COVERAGE-OFF$
+    override def toString: String = "PopStateAndErrorsAndFail"
+    // $COVERAGE-ON$
+}
+
 private [internal] object PopStateRestoreHintsAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
