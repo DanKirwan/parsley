@@ -30,7 +30,10 @@ private [deepembedding] final class Atomic[A](val p: StrictParsley[A]) extends S
     final override def pretty(p: String): String = s"atomic($p)"
     // $COVERAGE-ON$
 }
+// TODO (Dan) figure out when to clear the errors inside of RestoreHintsAndState and PopStateRestoreHintsAndFail
 private [deepembedding] final class Look[A](val p: StrictParsley[A]) extends ScopedUnaryWithState[A, A] {
+    override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndStateAndErrors(label)
+
     override val instr: instructions.Instr = instructions.RestoreHintsAndState
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int  = state.getLabel(instructions.PopStateRestoreHintsAndFail)
@@ -41,7 +44,7 @@ private [deepembedding] final class Look[A](val p: StrictParsley[A]) extends Sco
 private [deepembedding] final class NotFollowedBy[A](val p: StrictParsley[A]) extends Unary[A, Unit] {
     final override def codeGen[M[_, +_]: ContOps, R](producesResults: Boolean)(implicit instrs: InstrBuffer, state: CodeGenState): M[R, Unit] = {
         val handler = state.freshLabel()
-        instrs += new instructions.PushHandlerAndState(handler)
+        instrs += new instructions.PushHandlerAndStateAndErrors(handler)
         suspend[M, R, Unit](p.codeGen(producesResults = false)) |> {
             instrs += instructions.NegLookFail
             instrs += new instructions.Label(handler)

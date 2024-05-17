@@ -107,13 +107,12 @@ private [backend] object Choice {
         val handler = state.freshLabel()
         val skip = state.freshLabel()
         // FIXME: check this, this is the only one that uses this instruction, and I think it was a mistake
-        instrs += new instructions.PushHandlerAndStateAndClearHints(handler)
+        instrs += new instructions.PushHandlerAndState(handler)
         suspend(p.codeGen[M, R](producesResults)) >> {
             instrs += new instructions.JumpAndPopState(skip)
             instrs += new instructions.Label(handler)
             generateHandler |> {
                 instrs += new instructions.Label(skip)
-                instrs += instructions.ApplyErrorAccumulator
 
             }
         }
@@ -123,13 +122,12 @@ private [backend] object Choice {
                                                    (implicit instrs: InstrBuffer, state: CodeGenState): M[R, Unit] = {
         val handler = state.freshLabel()
         val skip = state.freshLabel()
-        instrs += new instructions.PushHandlerAndClearHints(handler)
+        instrs += new instructions.PushHandler(handler)
         suspend(p.codeGen[M, R](producesResults)) >> {
             instrs += new instructions.JumpAndPopCheck(skip)
             instrs += new instructions.Label(handler)
             generateHandler |> {
                 instrs += new instructions.Label(skip)
-                instrs += instructions.ApplyErrorAccumulator
             }
         }
     }
@@ -164,6 +162,7 @@ private [backend] object Choice {
         val merge = state.getLabel(instructions.MergeErrorsAndFail)
         p match {
             case Atomic(u) => scopedState(u, producesResults) {
+                // TODO (Dan1) should this ClearLiveError be here or where error to hints is?
                 instrs += instructions.ClearLiveError
                 instrs += new instructions.RestoreAndPushHandler(merge)
                 rest |> {

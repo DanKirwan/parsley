@@ -2,6 +2,7 @@ import parsley.combinator
 import parsley.Parsley, Parsley.*
 import parsley.errors.combinator.*
 import parsley.character.*
+import parsley.syntax.character.{charLift, stringLift}
 
 val p = ((atomic(char('a') ~> parsley.Parsley.empty) | char('b')).impure | unit) ~> char('c')
 val y = (atomic(char('a') ~> parsley.Parsley.empty) | (char('b') | unit)) ~> char('c')
@@ -31,14 +32,14 @@ func4.parse("a")
 
 
 
-val allImpure = (((atomic(char('a') ~> parsley.Parsley.empty).impure | char('b')) | unit) ~> char('c')).impure
+// val allImpure = (((atomic(char('a') ~> parsley.Parsley.empty).impure | char('b')) | unit) ~> char('c')).impure
 
-allImpure.parse("a")
+// allImpure.parse("a")
 
 
-val noneImpure = ((atomic(char('a') ~> parsley.Parsley.empty)) | char('b') | unit) ~> char('c')
+// val noneImpure = ((atomic(char('a') ~> parsley.Parsley.empty)) | char('b') | unit) ~> char('c')
 
-// noneImpure.parse("a")
+// // noneImpure.parse("a")
 
 
 
@@ -47,11 +48,11 @@ val jump = (char('a') | char('b') | char('x')  | char('y') | unit) ~> char('c')
 jump.parse("z")
 
 
-val test = ((atomic(char('a').impure ~> char('x').impure ~> char('z').impure).impure).impure | unit).impure ~> char('c')
+// val test = ((atomic(char('a').impure ~> char('x').impure ~> char('z').impure).impure).impure | unit).impure ~> char('c')
  
 
-test.parse("ax")
-test.parse("v")
+// test.parse("ax")
+// test.parse("v")
 
 
 
@@ -61,7 +62,7 @@ val labels = (amend(atomic(char('a') ~> char('b')))).label("test");
 labels.parse("b");
 
 
-(char('a') | unexpected("bee") ? "something less cute").parse("b")
+// (char('a') | unexpected("bee") ? "something less cute").parse("b")
 
 
 
@@ -73,4 +74,25 @@ val qarser = combinator.optional(char('b').label("b")) ~> amend(char('a') ~> dig
 qarser.parse("aa")
 
 
-(char('a') <|> (Parsley.empty ? "something, at least")).parse("b")
+
+(combinator.optional(char('a')) *> char('b')).label("hi").parse("e")
+
+// (char('a') <|> (Parsley.empty ? "something, at least")).parse("b")
+
+
+lookAhead("ab").parse("ac") 
+
+// Good example of making sure lookahead finishes in the right state - problem here is when it fails
+
+('a' <|> lookAhead(combinator.optional(digit)) *> 'c' <|> 'b').parse("d")
+
+('a' <|> lookAhead(combinator.optional(digit) *> 'c') <|> 'b').parse("d")
+
+
+
+
+
+('a' <|> unexpected("bee") ? "something less cute").parse("b")
+
+
+('a' <|> notFollowedBy(digit) *> 'c' <|> 'b').parse("d")

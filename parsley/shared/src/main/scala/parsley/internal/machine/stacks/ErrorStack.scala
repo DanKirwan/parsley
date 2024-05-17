@@ -17,3 +17,17 @@ private [machine] object ErrorStack extends Stack[ErrorStack] {
     override protected def tail(xs: ErrorStack): ErrorStack = xs.tail
     // $COVERAGE-ON$
 }
+
+
+private [machine] class ErrorPairStack(var errorState: (Option[DefuncError], Option[DefuncError]), var tail: ErrorPairStack) 
+
+private [machine] object ErrorPairStack extends Stack[ErrorPairStack] {
+
+    implicit val inst: Stack[ErrorPairStack] = this
+    type ElemTy =  (Option[DefuncError], Option[DefuncError])
+    // $COVERAGE-OFF$
+    override protected def show(x: ElemTy): String = x.toString
+    override protected def head(xs: ErrorPairStack): ElemTy = xs.errorState
+    override protected def tail(xs: ErrorPairStack): ErrorPairStack = xs.tail
+    // $COVERAGE-ON$
+}

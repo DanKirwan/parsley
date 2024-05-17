@@ -58,7 +58,7 @@ private [internal] final class SatisfyExchange[A](f: Char => Boolean, x: A, _exp
 private [internal] final class RecoverWith[A](x: A) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.restoreHints() // This must be before adding the error to hints
+        
         ctx.catchNoConsumed(ctx.handlers.check) {
             ctx.errorToAccumulator();
             ctx.handlers = ctx.handlers.tail
@@ -82,9 +82,7 @@ private [internal] final class AlwaysRecoverWith[A](x: A) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.restoreState()
-        // ctx.restoreHints() // This must be before adding the error to hints
         ctx.handlers = ctx.handlers.tail
-        // ctx.addErrorToHintsAndPop()
         
         ctx.errorToAccumulator();
         ctx.good = true
@@ -113,7 +111,8 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
             ctx.pc = dest
             if (dest != default) {
                 ctx.pushHandler(defaultPreamble)
-                ctx.hints = EmptyHints
+                // TODO (Dan) Jump table needs fixing
+                // ctx.hints = EmptyHints
             }
             addErrors(ctx, errorItems) // adds a handler
         }
@@ -127,7 +126,6 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
         // FIXME: the more appropriate way of demanding input may be to pick 1 character, for same rationale with StringTok
         // TODO (Dan) make sure adding the error here is fine
         val newErr = new ExpectedError(ctx.offset, ctx.line, ctx.col, errorItems, unexpectedWidth = size);
-        ctx.errs = new ErrorStack(newErr, ctx.errs)
         assert(ctx.liveError.isEmpty, "Cannot do jump table with existing errors")
         ctx.choiceAccumulator =  Some(newErr)
         ctx.pushHandler(merge)

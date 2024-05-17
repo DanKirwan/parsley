@@ -40,8 +40,10 @@ private [internal] object RestoreAndFail extends Instr {
 private [internal] object RestoreHintsAndState extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        ctx.restoreHints()
         ctx.restoreState()
+        // TODO (Dan) maybe rename this instruction to make it clear its clearning hints - also maybe confirm theres no error here?
+        ctx.choiceAccumulator = None
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.inc()
     }
@@ -65,9 +67,16 @@ private [internal] object PopStateAndFail extends Instr {
 private [internal] object PopStateRestoreHintsAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.restoreHints()
         ctx.handlers = ctx.handlers.tail
         ctx.states = ctx.states.tail
+
+
+        // This is only used in lookahead where we want to clear the current error and hints
+        // and restore the old state 
+        // TODO (Dan) Rename this to show that it's clearing errors in the current state - and figure out where live errors should be cleared
+        ctx.choiceAccumulator = None
+        ctx.popAndMergeErrors()
+        // ctx.liveError = None
         ctx.fail()
     }
     // $COVERAGE-OFF$

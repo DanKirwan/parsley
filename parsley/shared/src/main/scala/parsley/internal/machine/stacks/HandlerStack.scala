@@ -5,7 +5,8 @@
  */
 package parsley.internal.machine.stacks
 
-import parsley.internal.machine.errors.DefuncHints
+
+import parsley.internal.machine.errors.DefuncError
 import parsley.internal.machine.instructions.Instr
 
 private [machine] final class HandlerStack(
@@ -14,8 +15,6 @@ private [machine] final class HandlerStack(
     var pc: Int,
     val stacksz: Int,
     var check: Int,
-    val hints: DefuncHints,
-    val hintOffset: Int,
     val tail: HandlerStack)
 private [machine] object HandlerStack extends Stack[HandlerStack] {
     implicit val inst: Stack[HandlerStack] = this

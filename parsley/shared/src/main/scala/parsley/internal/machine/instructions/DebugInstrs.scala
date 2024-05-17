@@ -162,12 +162,15 @@ private [instructions] final case class ErrLogData(hintsOffset: Int, hints: Set[
 private [internal] final class LogErrBegin(var label: Int, override val name: String, override val ascii: Boolean)(implicit errBuilder: ErrorBuilder[_])
     extends InstrWithLabel with ErrLogger {
     override def apply(ctx: Context): Unit = {
+
+        throw new NotImplementedError("Debug instructions not yet supported in new error system")
         ensureRegularInstruction(ctx)
-        val inFlightHints = ctx.inFlightHints.toSet
+        // val inFlightHints = ctx.inFlightHints.toSet
         // This should print out a classic opening line, followed by the currently in-flight hints
-        println(preludeString(Enter, ctx, s": current hints are ${inFlightHints.map(_.formatExpect)} (valid at offset ${ctx.currentHintsValidOffset})"))
+        // println(preludeString(Enter, ctx, s": current hints are ${inFlightHints.map(_.formatExpect)} (valid at offset ${ctx.currentHintsValidOffset})"))
         ctx.debuglvl += 1
-        ctx.stack.push(ErrLogData(ctx.currentHintsValidOffset, inFlightHints))
+        // TODO (Dan) figure out how 
+        // ctx.stack.push(ErrLogData(ctx.currentHintsValidOffset, inFlightHints))
         ctx.pushHandler(label)
         ctx.inc()
     }
@@ -177,44 +180,46 @@ private [internal] final class LogErrBegin(var label: Int, override val name: St
 private [internal] final class LogErrEnd(override val name: String, override val ascii: Boolean)(implicit errBuilder: ErrorBuilder[_])
     extends Instr with ErrLogger {
     override def apply(ctx: Context): Unit = {
-        assert(ctx.running, "cannot wrap a Halt with a debug")
-        ctx.debuglvl -= 1
-        ctx.handlers = ctx.handlers.tail
-        @unused val currentHintsValidOffset = ctx.currentHintsValidOffset
-        if (ctx.good) {
-            // In this case, the currently in-flight hints should be reported
-            val oldData = ctx.stack.pop[ErrLogData]()
-            val inFlightHints = ctx.inFlightHints.toSet
-            val formattedInFlight = inFlightHints.map(_.formatExpect)
-            val msgInit = s": ${green("Good")}, current hints are $formattedInFlight with"
-            if (!oldData.stillValid(ctx.currentHintsValidOffset)) {
-                println(preludeString(Exit, ctx, s"$msgInit old hints discarded (valid at offset ${ctx.currentHintsValidOffset})"))
-            }
-            else {
-                val newHints = oldData.newHints(ctx.currentHintsValidOffset, inFlightHints)
-                if (newHints.size == inFlightHints.size) {
-                    println(preludeString(Exit, ctx, s"$msgInit all added since entry to debug (valid at offset ${ctx.currentHintsValidOffset})"))
-                }
-                else {
-                    val formattedNewHints = oldData.newHints(ctx.currentHintsValidOffset, inFlightHints).map(_.formatExpect)
-                    val msg = s"$msgInit $formattedNewHints added since entry to debug (valid at offset ${ctx.currentHintsValidOffset})"
-                    println(preludeString(Exit, ctx, msg))
-                }
-            }
-            ctx.inc()
-        }
-        else {
-            // In this case, the current top of stack error message is reported
-            // For this, there needs to be a verbose mode that prints out the composite error
-            // as opposed to the simplified error (post-merge)
-            // there should be different levels of verbose flags, such that we can also display the expecteds _under_ a label
-            @unused val oldData = ctx.stack.peek[ErrLogData]
-            val defuncErr = ctx.inFlightError
-            val err = defuncErr.asParseError(ctx.errorItemBuilder)
-            println(preludeString(Exit, ctx, s": ${red("Fail")}"))
-            println(Indenter.indentAndUnlines(ctx, LogErrEnd.format(err): _*))
-            ctx.fail()
-        }
+        throw new NotImplementedError("Debug instructions not yet supported in new error system")
+
+        // assert(ctx.running, "cannot wrap a Halt with a debug")
+        // ctx.debuglvl -= 1
+        // ctx.handlers = ctx.handlers.tail
+        // @unused val currentHintsValidOffset = ctx.currentHintsValidOffset
+        // if (ctx.good) {
+        //     // In this case, the currently in-flight hints should be reported
+        //     val oldData = ctx.stack.pop[ErrLogData]()
+        //     val inFlightHints = ctx.inFlightHints.toSet
+        //     val formattedInFlight = inFlightHints.map(_.formatExpect)
+        //     val msgInit = s": ${green("Good")}, current hints are $formattedInFlight with"
+        //     if (!oldData.stillValid(ctx.currentHintsValidOffset)) {
+        //         println(preludeString(Exit, ctx, s"$msgInit old hints discarded (valid at offset ${ctx.currentHintsValidOffset})"))
+        //     }
+        //     else {
+        //         val newHints = oldData.newHints(ctx.currentHintsValidOffset, inFlightHints)
+        //         if (newHints.size == inFlightHints.size) {
+        //             println(preludeString(Exit, ctx, s"$msgInit all added since entry to debug (valid at offset ${ctx.currentHintsValidOffset})"))
+        //         }
+        //         else {
+        //             val formattedNewHints = oldData.newHints(ctx.currentHintsValidOffset, inFlightHints).map(_.formatExpect)
+        //             val msg = s"$msgInit $formattedNewHints added since entry to debug (valid at offset ${ctx.currentHintsValidOffset})"
+        //             println(preludeString(Exit, ctx, msg))
+        //         }
+        //     }
+        //     ctx.inc()
+        // }
+        // else {
+        //     // In this case, the current top of stack error message is reported
+        //     // For this, there needs to be a verbose mode that prints out the composite error
+        //     // as opposed to the simplified error (post-merge)
+        //     // there should be different levels of verbose flags, such that we can also display the expecteds _under_ a label
+        //     @unused val oldData = ctx.stack.peek[ErrLogData]
+        //     val defuncErr = ctx.inFlightError
+        //     val err = defuncErr.asParseError(ctx.errorItemBuilder)
+        //     println(preludeString(Exit, ctx, s": ${red("Fail")}"))
+        //     println(Indenter.indentAndUnlines(ctx, LogErrEnd.format(err): _*))
+        //     ctx.fail()
+        // }
     }
     override def toString: String = s"LogErrEnd($name)"
 }

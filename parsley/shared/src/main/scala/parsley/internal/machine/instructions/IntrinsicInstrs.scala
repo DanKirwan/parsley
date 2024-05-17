@@ -13,6 +13,7 @@ import parsley.token.errors.LabelConfig
 import parsley.internal.errors.{EndOfInput, ExpectDesc, ExpectItem}
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
+import parsley.internal.machine.stacks.Stack.StackExt
 
 private [internal] final class Lift2(f: (Any, Any) => Any) extends Instr {
     override def apply(ctx: Context): Unit = {
@@ -188,7 +189,16 @@ private [internal] object NegLookFail extends Instr {
         val reached = ctx.offset
         // Recover the previous state; notFollowedBy NEVER consumes input
         ctx.restoreState()
-        ctx.restoreHints()
+        
+        // Although we have failed negative lookahead there may still be accumulated hint errors
+        // TODO (Dan) figure out why negative lookahead can fail with an error (see TokenExtractorTests:141)
+        // assume(ctx.liveError.isEmpty, "Cannot fail negative lookahead with an error");
+        // ctx.choiceAccumulator = None
+        // TODO (Dan1) I think we need to pop here but look back in the new system - handler might do it for us 
+        ctx.liveError = None
+        ctx.choiceAccumulator = None
+        ctx.popAndMergeErrors()
+
         // A previous success is a failure
         ctx.handlers = ctx.handlers.tail
         ctx.expectedFail(None, reached - ctx.offset)
@@ -197,17 +207,25 @@ private [internal] object NegLookFail extends Instr {
     override def toString: String = "NegLookFail"
     // $COVERAGE-ON$
 }
+/**
+  * This instruction happens when we hit an error within a negative look ahead 
+  * this means that we have successfully negatively looked ahead so should recover 
+  * and remove all errors
+  */
 
 private [internal] object NegLookGood extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         // Recover the previous state; notFollowedBy NEVER consumes input
         ctx.restoreState()
-        ctx.restoreHints()
+    
         ctx.handlers = ctx.handlers.tail
+
+        ctx.liveError = None
+        ctx.choiceAccumulator = None
+        ctx.popAndMergeErrors()
         // A failure is what we wanted
         ctx.good = true
-        ctx.errs = ctx.errs.tail
         ctx.inc()
     }
     // $COVERAGE-OFF$

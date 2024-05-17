@@ -55,13 +55,18 @@ private [internal] final class RelabelHints(labels: Iterable[String]) extends In
         // if this was a hide, pop the hints if possible
         // this is desirable so that hide is _very_ aggressive with labelling:
         // whitespaces.hide should say nothing, but digits.label("integer") should give digit as a hint if one is parsed, not integer
-        if (isHide) ctx.popHints()
-        // EOK
-        // replace the head of the hints with the singleton for our label
-        else if (ctx.offset == ctx.handlers.check) ctx.replaceHint(labels)
+        // if (isHide) ctx.popHints()
+        // // EOK
+        // // replace the head of the hints with the singleton for our label
+        // else if (ctx.offset == ctx.handlers.check) ctx.replaceHint(labels)
         // COK
         // do nothing
-        ctx.mergeHints()
+
+        // TODO (Dan) figure out if we need the agressive isHide
+        if(isHide) ctx.choiceAccumulator = None
+        else if(ctx.offset == ctx.handlers.check) ctx.choiceAccumulator = ctx.choiceAccumulator.map(e => e.label(labels, ctx.offset))
+
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.inc()
     }
@@ -83,6 +88,7 @@ private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) ext
 
         // TODO (Dan) replace with context calls 
         ctx.liveError = ctx.liveError.map(e => e.label(labels, ctx.handlers.check))
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -97,7 +103,9 @@ private [internal] object HideHints extends Instr {
         ensureRegularInstruction(ctx)
         // ctx.popHints()
         // ctx.mergeHints()
-        ctx.liveError = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
+        assert(ctx.liveError.isEmpty, "Cannot hide hints if we have an existing error")
+        // ctx.liveError = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
+        ctx.choiceAccumulator = None
 
         ctx.handlers = ctx.handlers.tail
         ctx.inc()
@@ -113,7 +121,6 @@ private [internal] object HideErrorAndFail extends Instr {
         // TODO (Dan) figure out difference between this and above and why we need the extra instructions 
         ensureHandlerInstruction(ctx)
         // TODO (Dan) figure out my equivalent of restore hints
-        ctx.restoreHints()
         // ctx.errs.error = new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0)
         ctx.liveError = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
         ctx.handlers = ctx.handlers.tail
@@ -178,7 +185,6 @@ private [internal] object MergeErrorsAndFail extends Instr {
 private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.errs.error = ctx.errs.error.withReason(reason, ctx.handlers.check)
         ctx.liveError = ctx.liveError.map(e => e.withReason(reason, ctx.handlers.check))
         // Why does this remove a handler?
         ctx.handlers = ctx.handlers.tail
@@ -194,10 +200,9 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
 private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.restoreHints() //TODO: verify this is ok; it feels more right than the restore on the labelling
         ctx.handlers = ctx.handlers.tail
-        ctx.errs.error = ctx.errs.error.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col)
         ctx.liveError = ctx.liveError.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
+        // ctx.popAndMergeErrors()
         ctx.states = ctx.states.tail
         ctx.fail()
     }
@@ -216,7 +221,6 @@ private [internal] object EntrenchAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.handlers = ctx.handlers.tail
-        ctx.errs.error = ctx.errs.error.entrench
         // TODO (Dan) do we need to do anything with accumulator errors
         ctx.liveError = ctx.liveError.map(e => e.entrench)
         ctx.fail()
@@ -231,7 +235,6 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.handlers = ctx.handlers.tail
-        ctx.errs.error = ctx.errs.error.dislodge(n)
         // TODO (Dan) do we need to do anything with accumulator errors
         ctx.liveError = ctx.liveError.map(e => e.dislodge(n))
         ctx.fail()
@@ -245,7 +248,7 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
 private [internal] object SetLexicalAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.errs.error = ctx.errs.error.markAsLexical(ctx.handlers.check)
+        ctx.liveError = ctx.liveError.map(x => x.markAsLexical(ctx.handlers.check))
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }

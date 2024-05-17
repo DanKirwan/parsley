@@ -10,9 +10,10 @@ import parsley.token.errors.Label
 import parsley.internal.deepembedding.singletons._
 import parsley.internal.machine.instructions
 
+// TODO (Dan) this may need it's own error scope i'm not sure yet
 private [deepembedding] final class ErrorLabel[A](val p: StrictParsley[A], private val label: String, private val labels: scala.Seq[String])
     extends ScopedUnary[A, A] {
-    override def setup(label: Int): instructions.Instr = new instructions.PushHandler(label) // was AndClearHints
+    override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label) // was AndClearHints
     override def instr: instructions.Instr = new instructions.RelabelHints(label +: labels)
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int = state.getLabelForRelabelError(label +: labels)
@@ -52,7 +53,9 @@ private [deepembedding] final class ErrorExplain[A](val p: StrictParsley[A], rea
 }
 
 private [deepembedding] final class ErrorAmend[A](val p: StrictParsley[A], partial: Boolean) extends ScopedUnaryWithState[A, A] {
-    override val instr: instructions.Instr = instructions.PopHandlerAndState
+    override val instr: instructions.Instr = instructions.PopHandlerAndStateAndErrors
+    override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndStateAndErrors(label)
+
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int  = state.getLabel(instructions.AmendAndFail(partial))
     // $COVERAGE-OFF$

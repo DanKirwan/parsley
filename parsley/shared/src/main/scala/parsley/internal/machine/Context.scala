@@ -20,12 +20,14 @@ import parsley.internal.machine.errors.{ClassicFancyError, DefuncError, DefuncHi
                                         ErrorItemBuilder, ExpectedError, ExpectedErrorWithReason, UnexpectedError}
 
 import instructions.Instr
-import stacks.{ArrayStack, CallStack, ErrorStack, HandlerStack, Stack, StateStack}, Stack.StackExt
+import stacks.{ArrayStack, CallStack, ErrorStack, ErrorPairStack, HandlerStack, Stack, StateStack}, Stack.StackExt
 
 private [parsley] final class Context(private [machine] var instrs: Array[Instr],
                                       private [machine] val input: String,
                                       numRegs: Int,
                                       private val sourceFile: Option[String]) {
+
+    private val debug = false
     /** This is the operand stack, where results go to live  */
     private [machine] val stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
@@ -59,70 +61,67 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     // - semantics of when they've been overriden
     private [machine] var choiceAccumulator: Option[DefuncError] = None
 
-    // NEW ERROR MECHANISMS
-    private [machine] var hints: DefuncHints = EmptyHints
-    private var hintsValidOffset = 0
-    private [machine] var errs: ErrorStack = Stack.empty
 
-    private [machine] def restoreHints(): Unit = {
-        val hintFrame = this.handlers
-        this.hintsValidOffset = hintFrame.hintOffset
-        this.hints = hintFrame.hints
+    private [machine] var errorStack: ErrorPairStack = Stack.empty
+
+    // TODO (Dan) what does this mean?
+    private [machine] var checkOffset = 0
+
+
+
+    private [machine] def pushErrors(): Unit = {
+        assert(liveError.isEmpty, "Cannot push errors if we're in an error state")
+        errorStack = new ErrorPairStack((this.liveError, this.choiceAccumulator), this.errorStack)
+        this.liveError = None
+        this.choiceAccumulator = None
     }
 
-    /* Error Debugging Info */
-    private [machine] def inFlightHints: DefuncHints = hints
-    private [machine] def inFlightError: DefuncError = errs.error
-    private [machine] def currentHintsValidOffset: Int = hintsValidOffset
 
-    /* ERROR RELABELLING BEGIN */
-    private [machine] def mergeHints(): Unit = {
-        val hintFrame = this.handlers
-        if (hintFrame.hintOffset == offset) this.hints = hintFrame.hints.merge(this.hints)
+    /**
+      * Our errors are now ready to be merged back into the parent scope
+      * If we have a live error, apply accumulator, pop the stack and apply the accumulator from there 
+      * This puts us in a state of everything up to date with a live error in the parent
+      * 
+      * If no live error, merge the accumulators
+      */
+    private [machine] def popAndMergeErrors(): Unit = {
+        var (stackLive, stackAccumulator) = this.errorStack.errorState;
+        assert(stackLive.isEmpty, "Cannot pop errors if we have existing live errors")
+
+        this.errorStack = this.errorStack.tail
+        // If we are in an error state, we want to collect all our errors before exiting 
+        if(this.liveError.isDefined) {
+            // apply accumulator, set old accumulator and apply again
+            this.applyChoiceAccumulator()
+            this.choiceAccumulator = stackAccumulator;
+            this.applyChoiceAccumulator()
+        } else {
+            // If no choice accumulator, just put in the stack accumulator
+            this.choiceAccumulator = stackAccumulator match {
+                case None => this.choiceAccumulator;
+                case Some(stackE) => this.choiceAccumulator.map(e => e.merge(stackE)).orElse(Some(stackE))
+            }
+        }
+
     }
-    private [machine] def replaceHint(labels: Iterable[String]): Unit = {
-        hints = hints.rename(labels)
-        // liveError = liveError.map(e => e.label(labels, handlers.check))
-    }
 
-    private [machine] def popHints(): Unit = hints = hints.pop
-    /* ERROR RELABELLING END */
 
-    def invalidateHints(): Unit = {
 
-        if (hintsValidOffset < offset) {
-            hints = EmptyHints
-            hintsValidOffset = offset
+    private [machine] def addHints(expecteds: Set[ExpectItem], unexpectedWidth: Int) = {
+        assume(expecteds.nonEmpty, "hints must always be non-empty")
+        val newError = new ExpectedError(this.offset, this.line, this.col, expecteds, unexpectedWidth)
+
+        this.choiceAccumulator = this.choiceAccumulator match {
+            case None => Some(newError)
+            case Some(e) => Some(e.merge(newError))
         }
     }
 
 
-    def mergeOldErrors(err: DefuncError, stack: ErrorStack): DefuncError = {
-        if(stack.isEmpty) err
-        else mergeOldErrors(err.merge(stack.error), stack.tail)
-    }
-    private def addErrorToHints(err: DefuncError): Unit = {
-        assume(!(!err.isExpectedEmpty) || err.isTrivialError, "not having an empty expected implies you are a trivial error")
-        if (/*err.isTrivialError && */ !err.isExpectedEmpty && err.presentationOffset == offset) { // scalastyle:ignore disallow.space.after.token
-            // If our new hints have taken place further in the input stream, then they must invalidate the old ones
-            invalidateHints()
-            hints = hints.addError(err)
-        } 
-    }
-    private [machine] def addErrorToHintsAndPop(): Unit = {
-        // println(s"adding error to hints ${errs.error}")
-        this.addErrorToHints(errs.error)
-        this.errs = this.errs.tail
-    }
-    private [machine] def addHints(expecteds: Set[ExpectItem], unexpectedWidth: Int) = {
-        assume(expecteds.nonEmpty, "hints must always be non-empty")
-        invalidateHints()
-        hints = hints.addError(new ExpectedError(this.offset, this.line, this.col, expecteds, unexpectedWidth)) // TODO: this can be optimised further
-    }
-
     private [machine] def updateCheckOffset() = {
         this.handlers.check = this.offset
     }
+
 
     // $COVERAGE-OFF$
     private [machine] def pretty: String = {
@@ -137,14 +136,13 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
            |  handlers  = ${handlers.mkString(", ")}
            |  recstates = ${states.mkString(", ")}
            |  registers = ${regs.zipWithIndex.map{case (r, i) => s"r$i = $r"}.toList.mkString("\n              ")}
-           |  errors    = ${errs.mkString(", ")}
            |  oldErrs   = ${choiceAccumulator}
            |]""".stripMargin
     }
     // $COVERAGE-ON$
 
     private [parsley] def run[Err: ErrorBuilder, A](): Result[Err, A] = {
-        // println(this.pretty)
+        if(debug) println(this.pretty)
         try go[Err, A]()
         catch {
             // additional diagnostic checks
@@ -156,11 +154,14 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     @tailrec private def go[Err: ErrorBuilder, A](): Result[Err, A] = {
         //println(pretty)
         if (running) { // this is the likeliest branch, so should be executed with fewest comparisons
-            // print("Running New Inst: ")
-            // println(instrs(pc))
-            // println(this.liveError)
-            // println(this.choiceAccumulator)
-            // println("____")
+            if(debug) {
+
+                print("Running New Inst: ")
+                println(instrs(pc))
+                println(this.liveError)
+                println(this.choiceAccumulator)
+                println("____")
+            }
             instrs(pc)(this)
             go[Err, A]()
         }
@@ -173,14 +174,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             Success(stack.peek[A])
         }
         else {
-            // assert(!errs.isEmpty && errs.tail.isEmpty, "there should be exactly 1 parse error remaining at end of parse")
-            // assert(handlers.isEmpty, "there must be no more handlers on end of parse")
-            // assert(states.isEmpty, "there must be no residual states left at end of parse")
-
-            // println("Finished")
-            // println(pretty)
-            // println(liveError)
-            // println(choiceAccumulator)
+            
            
             applyChoiceAccumulator()
             // Failure(errs.error.asParseError.format(sourceFile))
@@ -239,26 +233,12 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         }
     }
 
+    
+    /* Eagerly apply scope accumulator to the error message when we push a new error */
+
     private [machine] def pushError(err: DefuncError): Unit = {
-        // println(this.pretty)
-
-        // println(err)
-
         this.liveError = liveError.map(e => e.merge(err)).orElse(Some(err))
-
-        // println(errorAccumulator)
-        this.errs = new ErrorStack(this.useHints(err), this.errs)
-        // println("After Error added: ")
-        // println(this.pretty)
-        // println("_____")
-    }
-    private [machine] def useHints(err: DefuncError): DefuncError = {
-        if (hintsValidOffset == err.presentationOffset) err.withHints(hints)
-        else {
-            hintsValidOffset = err.presentationOffset
-            hints = EmptyHints
-            err
-        }
+        this.applyChoiceAccumulator()
     }
 
     private [machine] def failWithMessage(caretWidth: CaretWidth, msgs: String*): Unit = {
@@ -336,7 +316,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         col += n
     }
     private [machine] def pushHandler(label: Int): Unit = {
-        handlers = new HandlerStack(calls, instrs, label, stack.usize, offset, hints, hintsValidOffset, handlers)
+        handlers = new HandlerStack(calls, instrs, label, stack.usize, offset, handlers)
     }
     private [machine] def saveState(): Unit = states = new StateStack(offset, line, col, states)
     private [machine] def restoreState(): Unit = {
