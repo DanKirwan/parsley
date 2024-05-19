@@ -283,6 +283,7 @@ private [instructions] abstract class FilterLike extends Instr {
     final def carryOn(ctx: Context): Unit = {
         ctx.states = ctx.states.tail
         ctx.handlers = ctx.handlers.tail
+        ctx.popAndMergeErrors()
         ctx.pc = good
     }
 

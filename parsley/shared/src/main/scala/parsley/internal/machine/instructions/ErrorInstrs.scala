@@ -136,6 +136,7 @@ private [internal] object ErrorToHints extends Instr {
         ensureRegularInstruction(ctx)
         // TODO (Dan) why does this remove a handler?
         ctx.handlers = ctx.handlers.tail
+
         // ctx.addErrorToHintsAndPop()
         
         
@@ -159,17 +160,11 @@ private [internal] object MergeErrorsAndFail extends Instr {
         ensureHandlerInstruction(ctx)
         // TODO (Dan) why does this remove a handler?
         ctx.handlers = ctx.handlers.tail
-        // val err2 = ctx.errs.error
-        // ctx.errs = ctx.errs.tail
-        // ctx.errs.error = ctx.errs.error.merge(err2)
+        
 
+        ctx.applyChoiceAccumulator()
+        // TODO (Dan) why doesn't this need to merge anything anymore?
 
-
-        // We can't know here if there will be existing errors to merge (In the case of a jump table) 
-        // As if we've hit the first item of the jump table we would have to have pushed a different handler
-        // TODO (Dan) look into whether this is a bad idea
-
-        // ctx.applyChoiceAccumulator();
        
 
 
@@ -186,6 +181,7 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.liveError = ctx.liveError.map(e => e.withReason(reason, ctx.handlers.check))
+        ctx.popAndMergeErrors()
         // Why does this remove a handler?
         ctx.handlers = ctx.handlers.tail
         ctx.fail()

@@ -170,8 +170,9 @@ private [backend] object Choice {
                 }
             }
             case u => scopedCheck(u, producesResults) {
-                instrs += instructions.ClearLiveError
+                // We need to only clear the live error if no input is consumed
                 instrs += new instructions.Catch(merge)
+                instrs += instructions.ClearLiveError
                 rest |> {
                     instrs += instructions.ErrorToHints
                 }

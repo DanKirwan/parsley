@@ -160,6 +160,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                 println(instrs(pc))
                 println(this.liveError)
                 println(this.choiceAccumulator)
+
+                println(this.errorStack.mkString(", "))
                 println("____")
             }
             instrs(pc)(this)
@@ -175,8 +177,15 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         }
         else {
             
+            assert(this.choiceAccumulator.isEmpty, "no errors can be in accumulator")
            
-            applyChoiceAccumulator()
+            // applyChoiceAccumulator()
+
+            // while(!errorStack.isEmpty) {
+            //     this.popAndMergeErrors()
+            // }
+            // if(!errorStack.isEmpty) this.popAndMergeErrors()
+            assert(errorStack.isEmpty, "Error stack must be fully merged")
             // Failure(errs.error.asParseError.format(sourceFile))
             Failure(liveError.get.asParseError.format(sourceFile))
         }
