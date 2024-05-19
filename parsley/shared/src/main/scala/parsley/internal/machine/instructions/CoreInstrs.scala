@@ -275,13 +275,13 @@ private [internal] final class JumpAndPopState(var label: Int) extends InstrWith
 private [internal] final class Catch(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        // ctx.restoreHints()
         val handler = ctx.handlers
         ctx.catchNoConsumed(handler.check) {
             assume(handler.stacksz == ctx.stack.usize && handler.check == ctx.offset,
                 // && handler.hints == ctx.hints && handler.hintOffset == ctx.currentHintsValidOffset,
                 "the handler can be re-used")
             handler.pc = label
+            ctx.errorToAccumulator()
             ctx.inc()
         }
     }

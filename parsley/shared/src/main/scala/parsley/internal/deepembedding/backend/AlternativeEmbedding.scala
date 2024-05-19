@@ -62,12 +62,11 @@ private [deepembedding] final class Choice[A](private [backend] val alt1: Strict
     }
 
     override def codeGen[M[_, +_]: ContOps, R](producesResults: Boolean)(implicit instrs: InstrBuffer, state: CodeGenState): M[R, Unit] = {
-        // this.tablify match {
-        //     // If the tablified list is single element (or the next is None), that implies that this should be generated as normal!
-        //     case (_ :: Nil) | (_ :: (_, None) :: Nil) => codeGenChain(alt1, alt2, alts.iterator, producesResults)
-        //     case tablified => codeGenJumpTable(tablified, producesResults)
-        // }
-        codeGenChain(alt1, alt2, alts.iterator, producesResults)
+        this.tablify match {
+            // If the tablified list is single element (or the next is None), that implies that this should be generated as normal!
+            case (_ :: Nil) | (_ :: (_, None) :: Nil) => codeGenChain(alt1, alt2, alts.iterator, producesResults)
+            case tablified => codeGenJumpTable(tablified, producesResults)
+        }
     }
 
     private def tablify: List[(StrictParsley[_], Option[(Char, Iterable[ExpectItem], Int, Boolean)])] = {
@@ -170,9 +169,7 @@ private [backend] object Choice {
                 }
             }
             case u => scopedCheck(u, producesResults) {
-                // We need to only clear the live error if no input is consumed
                 instrs += new instructions.Catch(merge)
-                instrs += instructions.ClearLiveError
                 rest |> {
                     instrs += instructions.ErrorToHints
                 }
@@ -282,6 +279,7 @@ private [backend] object Choice {
             }
             else {
                 tablified.last._1.codeGen(producesResults) |> {
+                    instrs += instructions.ClearLiveError
                     instrs += instructions.ErrorToHints
                     instrs += new instructions.Label(end)
                 }

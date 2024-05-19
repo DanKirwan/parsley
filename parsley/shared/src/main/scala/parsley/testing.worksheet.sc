@@ -155,3 +155,9 @@ val lexer = new Lexer(LexicalDesc.plain)
 lexer.nonlexeme.unsigned.decimal.parse("10")
 
 lexer.nonlexeme.character.ascii.parse("\\u43")
+
+
+
+val choice = atomic(string("abc")) <|> string("b") <|> string("abd") <|> string("cbe")
+
+choice.parse("abe")

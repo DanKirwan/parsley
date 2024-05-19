@@ -127,7 +127,7 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
         // TODO (Dan) make sure adding the error here is fine
         val newErr = new ExpectedError(ctx.offset, ctx.line, ctx.col, errorItems, unexpectedWidth = size);
         assert(ctx.liveError.isEmpty, "Cannot do jump table with existing errors")
-        ctx.choiceAccumulator =  Some(newErr)
+        ctx.choiceAccumulator = ctx.choiceAccumulator.map(e => e.merge(newErr)).orElse(Some(newErr))
         ctx.pushHandler(merge)
     }
 
