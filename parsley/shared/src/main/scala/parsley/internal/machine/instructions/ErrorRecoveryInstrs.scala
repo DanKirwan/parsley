@@ -12,32 +12,16 @@ import parsley.internal.machine.errors.NoError
 
 
 
-// TOOD if this doesn't change just use the pushHandlerAndErrors instruction
-private [internal] class InitializeRecovery(var label: Int) extends InstrWithLabel {
-    override def apply(ctx: Context): Unit = {
-        ensureRegularInstruction(ctx)
-
-        // push to a recovery stack, the current stack pointer
-        // push error handler and handler
-
-        ctx.pushErrors()
-        ctx.pushHandler(label)
-
-        ctx.inc()
-    }
-    // $COVERAGE-OFF$
-    override def toString: String = "InitializeRecovery"
-    // $COVERAGE-ON$
-}
-
 /**
   * This instruction is used when a recoverWith is used by the initial parser succeeds without issue
   */
-private [internal] class SucceedWithoutRecoveryAndJump(var label: Int) extends InstrWithLabel {
+private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val producesResults: Boolean) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        val item = ctx.stack.upop()
-        ctx.stack.push(Left(item))
+        if(producesResults) {
+            val item = ctx.stack.upop()
+            ctx.stack.push(Left(item))
+        }
 
         assert(!ctx.errorState.isLive, "Cannot succeed without recovery with live errors");
         ctx.handlers = ctx.handlers.tail
@@ -87,13 +71,18 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int) extends I
   * We have successfully finished parsing the recovery parser
   *
   */
-private [internal] class SucceedRecoveryAndJump(var label: Int) extends InstrWithLabel {
+private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResults: Boolean) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        val item = ctx.stack.upop()
-        ctx.stack.push(Right(item))
-
+  
         assert(!ctx.errorState.isLive, "Cannot finish recovery with live errors");
+
+        if(producesResults) {
+            val item = ctx.stack.upop()
+            ctx.stack.push(Right(item))
+        }
+
+
         // Move the error from recovery stack to list of actual errors
         ctx.handlers = ctx.handlers.tail
 
@@ -104,7 +93,7 @@ private [internal] class SucceedRecoveryAndJump(var label: Int) extends InstrWit
         ctx.pc = label
     }
     // $COVERAGE-OFF$
-    override def toString: String = s"SucceedRecoveryAndJump"
+    override def toString: String = s"SucceedRecoveryAndJump($label)"
     // $COVERAGE-ON$
 }
 

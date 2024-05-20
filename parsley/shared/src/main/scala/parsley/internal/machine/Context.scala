@@ -25,6 +25,7 @@ import parsley.internal.machine.errors.ErrorState
 import parsley.internal.machine.errors.NoError
 import parsley.internal.machine.errors.LiveError
 import parsley.internal.machine.errors.AccumulatorError
+import parsley.Recovered
 
 private [parsley] final class Context(private [machine] var instrs: Array[Instr],
                                       private [machine] val input: String,
@@ -122,6 +123,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             case _ => ???
         }
         this.recoveryStack = new ErrorStack(err, this.recoveryStack)
+        this.errorState = NoError
     }
 
     private [machine] def commitRecoveredError() = {
@@ -194,7 +196,14 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             assert(handlers.isEmpty, "there must be no more handlers on end of parse")
             assert(states.isEmpty, "there must be no residual states left at end of parse")
             // assert(errs.isEmpty, "there should be no parse errors remaining at end of parse")
-            Success(stack.peek[A])
+
+            if(recoverredErrors.isEmpty) {
+
+                Success(stack.peek[A])
+            } else {
+                val errs = recoverredErrors.map(_.asParseError.format(sourceFile))
+                Recovered(stack.peek[A], recoveredErrors = errs)
+            }
         }
         else {
             

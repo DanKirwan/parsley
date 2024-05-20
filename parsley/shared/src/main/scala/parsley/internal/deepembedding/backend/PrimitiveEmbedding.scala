@@ -72,11 +72,11 @@ private [deepembedding] final class RecoverWith[A, B](val p: StrictParsley[A], v
         instrs += new instructions.PushHandlerAndErrors(handler1)
 
         suspend[M, R, Unit](p.codeGen(producesResults)) |> {
-            instrs += new instructions.SucceedWithoutRecoveryAndJump(skip)
+            instrs += new instructions.SucceedWithoutRecoveryAndJump(skip, producesResults)
             instrs += new instructions.Label(handler1)
             instrs += new instructions.BeginRecovery(handler2)
             suspend[M, R, Unit](r.codeGen(producesResults)) |> {
-                instrs += new instructions.SucceedRecoveryAndJump(skip)
+                instrs += new instructions.SucceedRecoveryAndJump(skip, producesResults)
             }
             instrs += new instructions.Label(handler2)
             instrs += new instructions.FailRecovery

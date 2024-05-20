@@ -222,3 +222,15 @@ final case class Failure[Err](msg: Err) extends Result[Err, Nothing] {
     /** @inheritdoc */
     override def get: Nothing = throw new NoSuchElementException("get called on Failure") // scalastyle:ignore throw
 }
+
+
+final case class Recovered[A, Err](x: A, val recoveredErrors: List[Err]) extends Result[Nothing, A] {
+  override def isSuccess: Boolean = true
+  /** @inheritdoc */
+  override def isFailure: Boolean = false
+  /** @inheritdoc */
+  override def get: A = x
+
+
+
+}

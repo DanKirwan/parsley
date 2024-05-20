@@ -166,4 +166,7 @@ choice.parse("abe")
 
 val consumeUntilSemicolon: Parsley[String] = combinator.manyTill(satisfy(_ != ';'), char(';')).map(_.mkString)
 
-recoverWith('a', consumeUntilSemicolon).parse("basgdhse;")
+val rec1 = recoverWith('a', consumeUntilSemicolon)
+val rec2 = recoverWith('a', 'b')
+
+(rec2 *> rec2).parse("ba")
