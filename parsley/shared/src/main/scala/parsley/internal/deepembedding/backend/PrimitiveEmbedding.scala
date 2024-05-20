@@ -57,6 +57,41 @@ private [deepembedding] final class NotFollowedBy[A](val p: StrictParsley[A]) ex
     // $COVERAGE-ON$
 }
 
+
+private [deepembedding] final class RecoverWith[A, B](val p: StrictParsley[A], val r: StrictParsley[B]) extends StrictParsley[Either[A, B]]{
+
+    override private[deepembedding] def inlinable: Boolean = false
+
+
+    final override def codeGen[M[_, +_]: ContOps, R](producesResults: Boolean)(implicit instrs: InstrBuffer, state: CodeGenState): M[R, Unit] = {
+        val handler1 = state.freshLabel()
+        val handler2 = state.freshLabel()
+        val skip = state.freshLabel()
+
+
+        instrs += new instructions.PushHandlerAndErrors(handler1)
+
+        suspend[M, R, Unit](p.codeGen(producesResults)) |> {
+            instrs += new instructions.SucceedWithoutRecoveryAndJump(skip)
+            instrs += new instructions.Label(handler1)
+            instrs += new instructions.BeginRecovery(handler2)
+            suspend[M, R, Unit](r.codeGen(producesResults)) |> {
+                instrs += new instructions.SucceedRecoveryAndJump(skip)
+            }
+            instrs += new instructions.Label(handler2)
+            instrs += new instructions.FailRecovery
+            instrs += new instructions.Label(skip)
+            // if (producesResults) instrs += instructions.Push.Unit
+        }
+
+    }
+    // $COVERAGE-OFF$
+    override private[deepembedding] def pretty: String = s"recoverWith($p, $r)"
+
+    // $COVERAGE-ON$
+}
+
+
 private [deepembedding] final class Let[A] extends StrictParsley[A] {
     def inlinable: Boolean = true
     override def codeGen[M[_, +_]: ContOps, R](producesResults: Boolean)(implicit instrs: InstrBuffer, state: CodeGenState): M[R, Unit] = result {

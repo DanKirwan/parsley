@@ -1,3 +1,4 @@
+import parsley.unicode
 import parsley.token.descriptions.numeric.BreakCharDesc
 import parsley.token.numeric.Generic
 import parsley.token.numeric.UnsignedReal
@@ -161,3 +162,8 @@ lexer.nonlexeme.character.ascii.parse("\\u43")
 val choice = atomic(string("abc")) <|> string("b") <|> string("abd") <|> string("cbe")
 
 choice.parse("abe")
+
+
+val consumeUntilSemicolon: Parsley[String] = combinator.manyTill(satisfy(_ != ';'), char(';')).map(_.mkString)
+
+recoverWith('a', consumeUntilSemicolon).parse("basgdhse;")

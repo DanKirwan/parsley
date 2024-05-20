@@ -20,7 +20,7 @@ import parsley.internal.machine.errors.{ClassicFancyError, DefuncError, DefuncHi
                                         ErrorItemBuilder, ExpectedError, ExpectedErrorWithReason, UnexpectedError}
 
 import instructions.Instr
-import stacks.{ArrayStack, CallStack, ErrorStack, ErrorPairStack, HandlerStack, Stack, StateStack}, Stack.StackExt
+import stacks.{ArrayStack, CallStack, ErrorStack, ErrorStateStack, HandlerStack, Stack, StateStack}, Stack.StackExt
 import parsley.internal.machine.errors.ErrorState
 import parsley.internal.machine.errors.NoError
 import parsley.internal.machine.errors.LiveError
@@ -31,7 +31,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                                       numRegs: Int,
                                       private val sourceFile: Option[String]) {
 
-    private val debug = false
+    private val debug = true
     /** This is the operand stack, where results go to live  */
     private [machine] val stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
@@ -62,7 +62,11 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] var errorState: ErrorState[DefuncError] = NoError
 
 
-    private [machine] var errorStack: ErrorPairStack = Stack.empty
+    private [machine] var errorStack: ErrorStateStack = Stack.empty
+
+    private [machine] var recoveryStack: ErrorStack = Stack.empty
+
+    private [machine] var recoverredErrors: List[DefuncError] = List.empty
 
     // TODO (Dan) what does this mean?
     private [machine] var checkOffset = 0
@@ -71,7 +75,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] def pushErrors(): Unit = {
         assert(!errorState.isLive, "Cannot push errors if we're in an error state")
-        errorStack = new ErrorPairStack(this.errorState, this.errorStack)
+        errorStack = new ErrorStateStack(this.errorState, this.errorStack)
         this.errorState = NoError;
     }
 
@@ -109,6 +113,34 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     }
 
 
+    // Error Recovery
+
+    private [machine] def moveErrorToRecovery() = {
+        assume(this.errorState.isLive, "Cannot move error to recovery if not live")
+        val err = this.errorState match {
+            case LiveError(value) => value
+            case _ => ???
+        }
+        this.recoveryStack = new ErrorStack(err, this.recoveryStack)
+    }
+
+    private [machine] def commitRecoveredError() = {
+        assume(!this.recoveryStack.isEmpty, "Cannot commit a recovered error if no recovered errors in flight");
+        this.recoverredErrors = this.recoveryStack.error :: this.recoverredErrors
+        this.recoveryStack = this.recoveryStack.tail
+    }
+
+    /**
+      * When recovery fails, we want to keep the message from the original parser not the recovery parser
+      */
+
+    private [machine] def replaceRecoveryError() = {
+        assert(this.errorState.isLive, "Cannot replace a recovery error unless there is a live error")
+        this.errorState = LiveError(this.recoveryStack.error)
+        this.recoveryStack = this.recoveryStack.tail
+    }
+
+    // End: Error Recovery
     private [machine] def updateCheckOffset() = {
         this.handlers.check = this.offset
     }

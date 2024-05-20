@@ -29,6 +29,13 @@ private [parsley] final class Look[A](p: LazyParsley[A]) extends Unary[A, A](p) 
     private [parsley] var debugName = "lookAhead"
     // $COVERAGE-ON$
 }
+
+private [parsley] final class RecoverWith[A,B](p: LazyParsley[A], r: LazyParsley[B]) extends Binary[A, B, Either[A,B]](p, r) {
+    override def make(p: StrictParsley[A], r: StrictParsley[B]): StrictParsley[Either[A,B]] = new backend.RecoverWith(p, r)
+    private[parsley] var debugName: String = "recoverWith"
+    def visit[T, U[+_]](visitor: LazyParsleyIVisitor[T,U], context: T): U[Either[A,B]] = visitor.visit(this, context)(p, r)
+}
+
 private [parsley] final class NotFollowedBy[A](p: LazyParsley[A]) extends Unary[A, Unit](p) {
     override def make(p: StrictParsley[A]): StrictParsley[Unit] = new backend.NotFollowedBy(p)
 

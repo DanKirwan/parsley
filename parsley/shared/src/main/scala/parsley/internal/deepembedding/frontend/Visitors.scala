@@ -131,6 +131,7 @@ private [parsley] abstract class LazyParsleyIVisitor[-T, +U[+_]] { // scalastyle
     def visit[A](self: ErrorEntrench[A], context: T)(p: LazyParsley[A]): U[A]
     def visit[A](self: ErrorDislodge[A], context: T)(n: Int, p: LazyParsley[A]): U[A]
     def visit[A](self: ErrorLexical[A], context: T)(p: LazyParsley[A]): U[A]
+    def visit[A, B](self: RecoverWith[A, B], context: T)(p: LazyParsley[A], r: LazyParsley[B]): U[Either[A,B]]
 
     // Fallback case for any unknown parser types defined outside Parsley's main project.
     /** Specifically handles [[parsley.internal.deepembedding.frontend.Unary]],
@@ -296,4 +297,6 @@ private [frontend] abstract class GenericLazyParsleyIVisitor[-T, +U[+_]] extends
     override def visit[A](self: ErrorEntrench[A], context: T)(p: LazyParsley[A]): U[A] = visitUnary(self, context)(p)
     override def visit[A](self: ErrorDislodge[A], context: T)(n: Int, p: LazyParsley[A]): U[A] = visitUnary(self, context)(p)
     override def visit[A](self: ErrorLexical[A], context: T)(p: LazyParsley[A]): U[A] = visitUnary(self, context)(p)
+    def visit[A, B](self: RecoverWith[A, B], context: T)(p: LazyParsley[A], r: LazyParsley[B]) = visitBinary(self, context)(p, r)
+
 }
