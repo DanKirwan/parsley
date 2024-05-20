@@ -169,8 +169,18 @@ val consumeUntilSemicolon: Parsley[String] = combinator.manyTill(satisfy(_ != ';
 val rec1 = recoverWith('a', consumeUntilSemicolon)
 val rec2 = recoverWith('a', 'b')
 
-(rec2 *> rec2).parse("bz")
+(rec2 *> rec2).parse("bx")
 
 val rec3 = recoverWith('a', recoverWith('x', 'b'))
 
 (rec3 *> rec3).parse("zh")
+
+recoverWith('a', 'b').parse("b")
+
+
+
+(rec2 *> parsley.Parsley.empty).parse("b")
+
+
+
+recoverWith('a','b').label("test").parse("x")
