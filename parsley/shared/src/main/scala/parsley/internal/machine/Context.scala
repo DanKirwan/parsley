@@ -21,6 +21,10 @@ import parsley.internal.machine.errors.{ClassicFancyError, DefuncError, DefuncHi
 
 import instructions.Instr
 import stacks.{ArrayStack, CallStack, ErrorStack, ErrorPairStack, HandlerStack, Stack, StateStack}, Stack.StackExt
+import parsley.internal.machine.errors.ErrorState
+import parsley.internal.machine.errors.NoError
+import parsley.internal.machine.errors.LiveError
+import parsley.internal.machine.errors.AccumulatorError
 
 private [parsley] final class Context(private [machine] var instrs: Array[Instr],
                                       private [machine] val input: String,
@@ -55,11 +59,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     /** Amount of indentation to apply to debug combinators output */
     private [machine] var debuglvl: Int = 0
 
-    private [machine] var liveError: Option[DefuncError] = None
-    // This represents errors from previous choices that haven't yet been merged
-    // TODO (Dan) figure out how quickly we can clear these 
-    // - semantics of when they've been overriden
-    private [machine] var choiceAccumulator: Option[DefuncError] = None
+    private [machine] var errorState: ErrorState[DefuncError] = NoError
 
 
     private [machine] var errorStack: ErrorPairStack = Stack.empty
@@ -70,10 +70,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
 
     private [machine] def pushErrors(): Unit = {
-        assert(liveError.isEmpty, "Cannot push errors if we're in an error state")
-        errorStack = new ErrorPairStack((this.liveError, this.choiceAccumulator), this.errorStack)
-        this.liveError = None
-        this.choiceAccumulator = None
+        assert(!errorState.isLive, "Cannot push errors if we're in an error state")
+        errorStack = new ErrorPairStack(this.errorState, this.errorStack)
+        this.errorState = NoError;
     }
 
 
@@ -85,22 +84,16 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
       * If no live error, merge the accumulators
       */
     private [machine] def popAndMergeErrors(): Unit = {
-        var (stackLive, stackAccumulator) = this.errorStack.errorState;
-        assert(stackLive.isEmpty, "Cannot pop errors if we have existing live errors")
+        val stackError = this.errorStack.errorState;
+        assert(!stackError.isLive, "Cannot pop errors if we have existing live errors")
 
         this.errorStack = this.errorStack.tail
-        // If we are in an error state, we want to collect all our errors before exiting 
-        if(this.liveError.isDefined) {
-            // apply accumulator, set old accumulator and apply again
-            this.applyChoiceAccumulator()
-            this.choiceAccumulator = stackAccumulator;
-            this.applyChoiceAccumulator()
-        } else {
-            // If no choice accumulator, just put in the stack accumulator
-            this.choiceAccumulator = stackAccumulator match {
-                case None => this.choiceAccumulator;
-                case Some(stackE) => this.choiceAccumulator.map(e => e.merge(stackE)).orElse(Some(stackE))
-            }
+        // If we have some error from the stack, we let the current state decide how to merge it 
+        // and if no current state we just default to the stack state
+        this.errorState = stackError match {
+            case NoError => errorState
+            //todo make sure this is being done right?
+            case someError => someError.flatMap(e => this.errorState.map(_.merge(e))).orElse(someError)
         }
 
     }
@@ -111,10 +104,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         assume(expecteds.nonEmpty, "hints must always be non-empty")
         val newError = new ExpectedError(this.offset, this.line, this.col, expecteds, unexpectedWidth)
 
-        this.choiceAccumulator = this.choiceAccumulator match {
-            case None => Some(newError)
-            case Some(e) => Some(e.merge(newError))
-        }
+        assert(!this.errorState.isLive, "Cannot add hints with a live error")
+        this.errorState.map(_.merge(newError)).orElse(AccumulatorError(newError))
     }
 
 
@@ -136,7 +127,6 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
            |  handlers  = ${handlers.mkString(", ")}
            |  recstates = ${states.mkString(", ")}
            |  registers = ${regs.zipWithIndex.map{case (r, i) => s"r$i = $r"}.toList.mkString("\n              ")}
-           |  oldErrs   = ${choiceAccumulator}
            |]""".stripMargin
     }
     // $COVERAGE-ON$
@@ -158,8 +148,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
                 print("Running New Inst: ")
                 println(instrs(pc))
-                println(this.liveError)
-                println(this.choiceAccumulator)
+                println(this.errorState)
 
                 println(this.errorStack.mkString(", "))
                 println("____")
@@ -177,7 +166,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         }
         else {
             
-            assert(this.choiceAccumulator.isEmpty, "no errors can be in accumulator")
+            assert(this.errorState.isLive, "Error must be live")
            
             // applyChoiceAccumulator()
 
@@ -187,31 +176,33 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             // if(!errorStack.isEmpty) this.popAndMergeErrors()
             assert(errorStack.isEmpty, "Error stack must be fully merged")
             // Failure(errs.error.asParseError.format(sourceFile))
-            Failure(liveError.get.asParseError.format(sourceFile))
+            val error = errorState match {
+                case LiveError(value) => value
+                case _ => ???
+            }
+            Failure(error.asParseError.format(sourceFile))
         }
     }
 
 
-    private [machine] def errorToAccumulator() = {
-        this.choiceAccumulator = (liveError, choiceAccumulator) match {
-            case (Some(e1), e2) =>
-                e2.map(e => e.merge(e1)).orElse(Some(e1))
-            case (_, e2) => e2
+
+    private [machine] def makeErrorLive() = {
+        this.errorState = this.errorState match {
+            case NoError => NoError
+            case LiveError(value) => LiveError(value)
+            case AccumulatorError(value) => LiveError(value)
         }
-
-        liveError = None
-
     }
-    private [machine] def applyChoiceAccumulator() =  {
-        this.liveError = (liveError, choiceAccumulator) match {
-            case (e1, Some(e2)) =>
-                // if we have any accumulator, try applying
-                e1.map(e => e.merge(e2)).orElse(Some(e2))
-            case (e1, _) => e1
+
+    private [machine] def makeErrorAccumulator() = {
+        this.errorState = this.errorState match {
+            case NoError => NoError
+            case LiveError(value) => AccumulatorError(value)
+            case AccumulatorError(value) => AccumulatorError(value)
         }
-
-        choiceAccumulator = None
     }
+
+
 
     private [machine] def call(newInstrs: Array[Instr]): Unit = {
         call(0)
@@ -246,8 +237,20 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     /* Eagerly apply scope accumulator to the error message when we push a new error */
 
     private [machine] def pushError(err: DefuncError): Unit = {
-        this.liveError = liveError.map(e => e.merge(err)).orElse(Some(err))
-        this.applyChoiceAccumulator()
+        this.errorState = this.errorState match {
+            case NoError => LiveError(err)
+            case AccumulatorError(value) => LiveError(value.merge(err))
+            case LiveError(value) => LiveError(value.merge(err))
+        }
+    }
+
+    private [machine] def pushAccumulatorError(err: DefuncError): Unit = {
+        assert(!this.errorState.isLive, "cannot push hints if we have a live error")
+        this.errorState = this.errorState match {
+            case NoError => AccumulatorError(err)
+            case AccumulatorError(value) => AccumulatorError(value.merge(err))
+            case LiveError(value) => AccumulatorError(value.merge(err))
+        }
     }
 
     private [machine] def failWithMessage(caretWidth: CaretWidth, msgs: String*): Unit = {

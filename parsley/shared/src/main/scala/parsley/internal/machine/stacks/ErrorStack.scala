@@ -6,6 +6,7 @@
 package parsley.internal.machine.stacks
 
 import parsley.internal.machine.errors.DefuncError
+import parsley.internal.machine.errors.ErrorState
 
 private [machine] final class ErrorStack(var error: DefuncError, val tail: ErrorStack)
 private [machine] object ErrorStack extends Stack[ErrorStack] {
@@ -19,12 +20,12 @@ private [machine] object ErrorStack extends Stack[ErrorStack] {
 }
 
 
-private [machine] class ErrorPairStack(var errorState: (Option[DefuncError], Option[DefuncError]), var tail: ErrorPairStack) 
+private [machine] class ErrorPairStack(var errorState: ErrorState[DefuncError], var tail: ErrorPairStack) 
 
 private [machine] object ErrorPairStack extends Stack[ErrorPairStack] {
 
     implicit val inst: Stack[ErrorPairStack] = this
-    type ElemTy =  (Option[DefuncError], Option[DefuncError])
+    type ElemTy =  ErrorState[DefuncError]
     // $COVERAGE-OFF$
     override protected def show(x: ElemTy): String = x.toString
     override protected def head(xs: ErrorPairStack): ElemTy = xs.errorState

@@ -14,6 +14,7 @@ import parsley.internal.errors.{EndOfInput, ExpectDesc, ExpectItem}
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
 import parsley.internal.machine.stacks.Stack.StackExt
+import parsley.internal.machine.errors.NoError
 
 private [internal] final class Lift2(f: (Any, Any) => Any) extends Instr {
     override def apply(ctx: Context): Unit = {
@@ -195,8 +196,7 @@ private [internal] object NegLookFail extends Instr {
         // assume(ctx.liveError.isEmpty, "Cannot fail negative lookahead with an error");
         // ctx.choiceAccumulator = None
         // TODO (Dan1) I think we need to pop here but look back in the new system - handler might do it for us 
-        ctx.liveError = None
-        ctx.choiceAccumulator = None
+        ctx.errorState = NoError
         ctx.popAndMergeErrors()
 
         // A previous success is a failure
@@ -221,8 +221,7 @@ private [internal] object NegLookGood extends Instr {
     
         ctx.handlers = ctx.handlers.tail
 
-        ctx.liveError = None
-        ctx.choiceAccumulator = None
+        ctx.errorState = NoError
         ctx.popAndMergeErrors()
         // A failure is what we wanted
         ctx.good = true

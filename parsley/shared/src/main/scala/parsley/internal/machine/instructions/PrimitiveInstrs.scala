@@ -11,6 +11,7 @@ import parsley.token.errors.LabelConfig
 import parsley.internal.errors.ExpectDesc
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
+import parsley.internal.machine.errors.NoError
 
 private [internal] final class Satisfies(f: Char => Boolean, expected: Iterable[ExpectDesc]) extends Instr {
     def this(f: Char => Boolean, expected: LabelConfig) = this(f, expected.asExpectDescs)
@@ -42,7 +43,8 @@ private [internal] object RestoreHintsAndState extends Instr {
         ensureRegularInstruction(ctx)
         ctx.restoreState()
         // TODO (Dan) maybe rename this instruction to make it clear its clearning hints - also maybe confirm theres no error here?
-        ctx.choiceAccumulator = None
+        assert(!ctx.errorState.isLive, "Cannot restore old state and errors with live error")
+        ctx.errorState = NoError
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.inc()
@@ -87,7 +89,7 @@ private [internal] object PopStateRestoreHintsAndFail extends Instr {
         // This is only used in lookahead where we want to clear the current error and hints
         // and restore the old state 
         // TODO (Dan) Rename this to show that it's clearing errors in the current state - and figure out where live errors should be cleared
-        ctx.choiceAccumulator = None
+        // ctx.errorState = NoError
         ctx.popAndMergeErrors()
         // ctx.liveError = None
         ctx.fail()

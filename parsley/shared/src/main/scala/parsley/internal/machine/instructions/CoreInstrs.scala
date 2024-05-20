@@ -281,7 +281,7 @@ private [internal] final class Catch(var label: Int) extends InstrWithLabel {
                 // && handler.hints == ctx.hints && handler.hintOffset == ctx.currentHintsValidOffset,
                 "the handler can be re-used")
             handler.pc = label
-            ctx.errorToAccumulator()
+            ctx.makeErrorAccumulator()
             ctx.inc()
         }
     }

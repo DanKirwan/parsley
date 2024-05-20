@@ -60,7 +60,8 @@ private [internal] final class RecoverWith[A](x: A) extends Instr {
         ensureHandlerInstruction(ctx)
         
         ctx.catchNoConsumed(ctx.handlers.check) {
-            ctx.errorToAccumulator();
+            ctx.makeErrorAccumulator()
+
             ctx.handlers = ctx.handlers.tail
             // ctx.addErrorToHintsAndPop()
             ctx.pushAndContinue(x)
@@ -84,7 +85,7 @@ private [internal] final class AlwaysRecoverWith[A](x: A) extends Instr {
         ctx.restoreState()
         ctx.handlers = ctx.handlers.tail
         
-        ctx.errorToAccumulator();
+        ctx.makeErrorAccumulator()
         ctx.good = true
         ctx.pushAndContinue(x)
     }
@@ -126,8 +127,8 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
         // FIXME: the more appropriate way of demanding input may be to pick 1 character, for same rationale with StringTok
         // TODO (Dan) make sure adding the error here is fine
         val newErr = new ExpectedError(ctx.offset, ctx.line, ctx.col, errorItems, unexpectedWidth = size);
-        assert(ctx.liveError.isEmpty, "Cannot do jump table with existing errors")
-        ctx.choiceAccumulator = ctx.choiceAccumulator.map(e => e.merge(newErr)).orElse(Some(newErr))
+        assert(!ctx.errorState.isLive, "Cannot do jump table with existing errors")
+        ctx.pushAccumulatorError((newErr))
         ctx.pushHandler(merge)
     }
 
