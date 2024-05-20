@@ -26,6 +26,7 @@ import parsley.internal.machine.errors.NoError
 import parsley.internal.machine.errors.LiveError
 import parsley.internal.machine.errors.AccumulatorError
 import parsley.Recovered
+import parsley.MultiFailure
 
 private [parsley] final class Context(private [machine] var instrs: Array[Instr],
                                       private [machine] val input: String,
@@ -216,12 +217,17 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             // }
             // if(!errorStack.isEmpty) this.popAndMergeErrors()
             assert(errorStack.isEmpty, "Error stack must be fully merged")
-            // Failure(errs.error.asParseError.format(sourceFile))
             val error = errorState match {
                 case LiveError(value) => value
                 case _ => ???
             }
-            Failure(error.asParseError.format(sourceFile))
+
+            if(recoverredErrors.isEmpty) {
+                Failure(error.asParseError.format(sourceFile))
+            } else {
+                val allErrs = error :: recoverredErrors
+                MultiFailure(allErrs.map(_.asParseError.format(sourceFile)))
+            }
         }
     }
 

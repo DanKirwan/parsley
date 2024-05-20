@@ -234,3 +234,15 @@ final case class Recovered[A, Err](x: A, val recoveredErrors: List[Err]) extends
 
 
 }
+
+final case class MultiFailure[A, Err](errs: List[Err]) extends Result[Err, Nothing] {
+  override def isSuccess: Boolean = false
+  /** @inheritdoc */
+  override def isFailure: Boolean = true
+  /** @inheritdoc */
+  override def get: Nothing = throw new NoSuchElementException("get called on Failure") // scalastyle:ignore throw
+
+
+
+
+}
