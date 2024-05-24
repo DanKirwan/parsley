@@ -18,10 +18,6 @@ import parsley.internal.machine.errors.NoError
 private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val producesResults: Boolean) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        if(producesResults) {
-            val item = ctx.stack.upop()
-            ctx.stack.push(Left(item))
-        }
 
         assert(!ctx.errorState.isLive, "Cannot succeed without recovery with live errors");
         ctx.handlers = ctx.handlers.tail
@@ -77,10 +73,6 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
   
         assert(!ctx.errorState.isLive, "Cannot finish recovery with live errors");
 
-        if(producesResults) {
-            val item = ctx.stack.upop()
-            ctx.stack.push(Right(item))
-        }
 
 
         // Move the error from recovery stack to list of actual errors

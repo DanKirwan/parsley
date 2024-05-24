@@ -184,3 +184,6 @@ recoverWith('a', 'b').parse("b")
 
 
 recoverWith('a','b').label("test").parse("x")
+
+
+rec3.parse("b")

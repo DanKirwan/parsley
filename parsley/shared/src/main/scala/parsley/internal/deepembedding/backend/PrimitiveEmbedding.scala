@@ -58,7 +58,7 @@ private [deepembedding] final class NotFollowedBy[A](val p: StrictParsley[A]) ex
 }
 
 
-private [deepembedding] final class RecoverWith[A, B](val p: StrictParsley[A], val r: StrictParsley[B]) extends StrictParsley[Either[A, B]]{
+private [deepembedding] final class RecoverWith[A, B](val p: StrictParsley[A], val r: StrictParsley[B]) extends StrictParsley[A]{
 
     override private[deepembedding] def inlinable: Boolean = false
 

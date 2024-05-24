@@ -18,7 +18,7 @@ class ErrorRecoveryTests extends ParsleyTest {
     "basic recovery" should "record errors but return an AST" in {
         inside(recoverWith('a', 'b').parse("b")) {
             case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
-                result shouldBe Right('b')
+                result shouldBe 'b'
                 unex should contain (Raw("b"))
                 exs should contain only Raw("a")
 
@@ -27,7 +27,7 @@ class ErrorRecoveryTests extends ParsleyTest {
 
     it should "not affect normal parses" in {
 
-        recoverWith('a', 'b').parse("a") shouldBe Success(Left('a'))
+        recoverWith('a', 'b').parse("a") shouldBe Success('a')
     }
 
     it should "handle cases where input is ignored" in {
@@ -35,7 +35,7 @@ class ErrorRecoveryTests extends ParsleyTest {
 
         inside( (rec *> rec).parse("ba") ) {
             case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
-                result shouldBe Left('a')
+                result shouldBe 'a'
                 unex should contain (Raw("b"))
                 exs should contain only Raw("a")
 
@@ -43,7 +43,7 @@ class ErrorRecoveryTests extends ParsleyTest {
 
         inside( (rec <* rec).parse("ba") ) {
             case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
-                result shouldBe Right('b')
+                result shouldBe 'b'
                 unex should contain (Raw("b"))
                 exs should contain only Raw("a")
 
@@ -90,7 +90,7 @@ class ErrorRecoveryTests extends ParsleyTest {
 
         inside(rec.parse("b")) {
             case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
-                result shouldBe Right('b')
+                result shouldBe 'b'
                 unex should contain (Raw("b"))
                 exs should contain only Raw("a")
         }
@@ -119,5 +119,28 @@ class ErrorRecoveryTests extends ParsleyTest {
         }
     }
 
+
+    it should "never produce errors in recovery mode" in {
+        val rec = recoverWith('a', recoverWith('b', 'c'))
+        inside(rec.parse("x")){
+            case Failure(TestError((1, 1), VanillaError(unex, exs, rs, 1))) =>
+                unex should contain (Raw("x"))
+                exs should contain only (Raw("a"))
+        }
+
+        inside(rec.parse("b")){
+            case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
+                result shouldBe 'b'
+                unex should contain (Raw("b"))
+                exs should contain only Raw("a")
+        }
+        inside(rec.parse("c")){
+            case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
+                result shouldBe 'b'
+                unex should contain (Raw("b"))
+                exs should contain only Raw("a")
+        }
+
+    }
 
 }

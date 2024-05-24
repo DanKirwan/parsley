@@ -1195,7 +1195,7 @@ private [parsley] abstract class ParsleyImpl {
     final def lookAhead[A](p: Parsley[A]): Parsley[A] = new Parsley(new frontend.Look(p.internal))
 
 
-    final def recoverWith[A, B](p: Parsley[A], r: Parsley[B]) = new Parsley(new frontend.RecoverWith(p.internal, r.internal))
+    final def recoverWith[A, B >: A](p: Parsley[A], r: Parsley[B]) = new Parsley(new frontend.RecoverWith(p.internal, r.internal))
     /** This combinator parses its argument `p`, and succeeds when `p` fails and vice-versa, never consuming input.
       *
       * If the parser `p` succeeds, then `notFollowedBy(p)` will fail, consuming no input.

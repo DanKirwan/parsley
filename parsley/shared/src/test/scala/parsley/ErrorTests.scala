@@ -621,4 +621,27 @@ class ErrorTests extends ParsleyTest {
                 expected should contain.allOf(Named("foo"), Named("b"))
         }
     }
+
+    "errors" should "not be lost due to optimizations" in {
+            
+        val p1 = ((atomic('a' ~> parsley.Parsley.empty) | 'b').impure | unit) ~> 'c'
+        val p2 = (atomic('a' ~> parsley.Parsley.empty) | ('b' | unit)) ~> 'c'
+
+        val p3 = (atomic('a' ~> parsley.Parsley.empty) | ('b' | unit).impure) ~> 'c'
+        val p4 = ((atomic('a' ~> parsley.Parsley.empty).impure | 'b') | unit) ~> 'c'
+
+
+        for (p <- Seq(p1, p2, p3, p4)) {
+
+            inside(p.parse("a")) {
+                case Failure(TestError((1,2), VanillaError(unex, expected, rs, _))) =>
+                    expected shouldBe empty
+                    unex shouldBe empty 
+                    rs shouldBe empty
+            }
+            
+        }
+
+
+    }
 }
