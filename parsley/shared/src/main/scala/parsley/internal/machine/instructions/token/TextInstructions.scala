@@ -147,6 +147,8 @@ private [internal] final class EscapeOneOfExactly(radix: Int, ns: List[Int], ine
                     assume(remaining != 0, "cannot be left with 0 remaining digits and failed")
                     assume(inexactErr.mkError(origOff, origLine, origCol, ctx.offset - origOff, n - remaining).isExpectedEmpty,
                            "filter errors don't have expecteds, so don't effect hints")
+                    // If we can't continue - we need to simulate having tried and recovered from this situation
+                    ctx.pushAccumulatorError(inexactErr.mkError(origOff, origLine, origCol, ctx.offset - origOff, n - remaining))
                     rollback(ctx, origOff, origLine, origCol)
                     acc
             }

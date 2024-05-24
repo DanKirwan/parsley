@@ -187,3 +187,16 @@ recoverWith('a','b').label("test").parse("x")
 
 
 rec3.parse("b")
+
+
+val reca = recoverWith('a', 'c') | 'c'
+        reca.parse("c")
+
+
+
+
+        
+
+//         nfo]     Occurred when passed generated values (
+// [info]       escDesc = EscapeDesc('\', Set(), Map(), Supported(None, AtMost(2), 1114111), Illegal, Supported(Some('o'), AtMost(16), 1114111), Illegal, Some('&'), false), // 7 shrinks
+// [info]       input = "\4" // 9 shrinks

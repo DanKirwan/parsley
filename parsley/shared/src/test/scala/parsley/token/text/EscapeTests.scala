@@ -97,4 +97,58 @@ class EscapeTests extends ParsleyTest {
         "\\b01111111" -> Some(127),
         "\\b011111110" -> None,
     )
+
+
+
+    it should "handle adding all hints" in {
+        val generic = new parsley.token.numeric.Generic(errConfig)
+        def makeOptEscape(escDesc: EscapeDesc) = new Escape(escDesc, errConfig, generic)
+        def makeUnoptEscape(escDesc: EscapeDesc) = new OriginalEscape(escDesc, errConfig, generic)
+
+
+        val desc = EscapeDesc(escBegin = '\\',
+                           literals = Set(),
+                           mapping = Map.empty,
+                           decimalEscape = NumericEscape.Supported(prefix = None, NumberOfDigits.AtMost(2), maxValue = 1114111),
+                           hexadecimalEscape = NumericEscape.Illegal,
+                           octalEscape = NumericEscape.Supported(prefix = Some('o'), NumberOfDigits.AtMost(16), maxValue = 11144111),
+                           binaryEscape = NumericEscape.Supported(Some('b'), NumberOfDigits.Exactly(16, 11, 5), 1114111),
+                           emptyEscape = Some('&'),
+                           gapsSupported = false)
+
+        val optEsc = makeOptEscape(desc)
+        val unoptEsc = makeUnoptEscape(desc)
+        val x = "\\o123a"
+
+
+        
+        (optEsc.escapeChar <* parsley.Parsley.eof).parse(x) shouldBe (unoptEsc.escapeChar <* parsley.Parsley.eof).parse(x)
+    }
+
+    it should "handle incorrect number of digits" in {
+        val generic = new parsley.token.numeric.Generic(errConfig)
+        def makeOptEscape(escDesc: EscapeDesc) = new Escape(escDesc, errConfig, generic)
+        def makeUnoptEscape(escDesc: EscapeDesc) = new OriginalEscape(escDesc, errConfig, generic)
+
+
+        val desc = EscapeDesc(escBegin = '\\',
+                           literals = Set(),
+                           mapping = Map.empty,
+                           decimalEscape = NumericEscape.Supported(prefix = None, NumberOfDigits.AtMost(2), maxValue = 1114111),
+                           hexadecimalEscape = NumericEscape.Illegal,
+                           octalEscape = NumericEscape.Supported(prefix = Some('o'), NumberOfDigits.AtMost(16), maxValue = 11144111),
+                           binaryEscape = NumericEscape.Supported(Some('b'), NumberOfDigits.Exactly(2, 10, 16, 5), 1114111),
+                           emptyEscape = Some('&'),
+                           gapsSupported = false)
+
+        val optEsc = makeOptEscape(desc)
+        val unoptEsc = makeUnoptEscape(desc)
+        val x = "\\b101"
+
+
+        
+        (optEsc.escapeChar <* parsley.Parsley.eof).parse(x) shouldBe (unoptEsc.escapeChar <* parsley.Parsley.eof).parse(x)
+
+    }
+
 }

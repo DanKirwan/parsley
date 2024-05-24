@@ -33,7 +33,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                                       numRegs: Int,
                                       private val sourceFile: Option[String]) {
 
-    private val debug = true
+    private val debug = false
     /** This is the operand stack, where results go to live  */
     private [machine] val stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
@@ -110,7 +110,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         val newError = new ExpectedError(this.offset, this.line, this.col, expecteds, unexpectedWidth)
 
         assert(!this.errorState.isLive, "Cannot add hints with a live error")
-        this.errorState.map(_.merge(newError)).orElse(AccumulatorError(newError))
+        this.errorState = this.errorState.map(_.merge(newError)).orElse(AccumulatorError(newError))
     }
 
 
@@ -131,7 +131,6 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         // we only want to commit errors if there is nothing else on the recovery stack 
         // otherwise we are accumulating errors in a recovery state
         if(this.recoveryStack.tail.isEmpty) {
-            
             this.recoverredErrors = this.recoveryStack.error :: this.recoverredErrors
         }
         this.recoveryStack = this.recoveryStack.tail

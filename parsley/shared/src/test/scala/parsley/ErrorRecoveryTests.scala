@@ -12,6 +12,7 @@ import parsley.character.{item, digit}
 import parsley.errors.combinator.{fail => pfail, unexpected, amend, partialAmend, entrench, dislodge, amendThenDislodge, /*partialAmendThenDislodge,*/ ErrorMethods}
 import parsley.errors.patterns._
 import parsley.errors.SpecializedGen
+import parsley.unicode.satisfy
 
 class ErrorRecoveryTests extends ParsleyTest {
 
@@ -143,6 +144,32 @@ class ErrorRecoveryTests extends ParsleyTest {
 
     }
 
+    it should "not attempt recovery in non fatal scenarios" in {
+
+
+        val rec = recoverWith('a', 'c') | 'c'
+        // Confirming this isn't a recovered error
+        rec.parse("c") shouldBe Success('c') 
+
+
+        // Example used to ensure no jump table optimizations
+        val rec2 = recoverWith('a', digit *> pure("test"))  | digit
+        rec2.parse("0") shouldBe Success('0')
+
+
+    }
+
+    it should "use recovery if parser fails fatally in retrospet" in {
+        
+        inside((recoverWith('a', 'c') | 'b').parse("c")) {
+            case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
+                result shouldBe 'c'
+                unex should contain (Raw("c"))
+                exs should contain only Raw("a")
+        }
+    }
+
+    
 
 
 }

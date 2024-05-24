@@ -40,7 +40,6 @@ private [internal] final class TokenSign(ty: SignType, plusPresence: PlusSignPre
             ctx.fail(new ExpectedError(ctx.offset, ctx.line, ctx.col, expecteds, 1))
         }
         else {
-            // TODO (Dan) should I be popping a stack here? see the generation of TokenSign
             ctx.pushAccumulatorError(new ExpectedError(ctx.offset, ctx.line, ctx.col, expecteds, 1))
             ctx.pushAndContinue(pos)
         }
