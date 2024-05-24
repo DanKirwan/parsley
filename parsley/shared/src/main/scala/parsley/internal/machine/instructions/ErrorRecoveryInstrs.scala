@@ -39,24 +39,31 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
     override def apply(ctx: Context): Unit = {
         
         ensureHandlerInstruction(ctx)
+        if(!ctx.isFatal && !ctx.forceRecovery) {
+          ctx.pushRecoveryPoint()
+          ctx.handlers = ctx.handlers.tail
+          ctx.popAndMergeErrors()
+          ctx.fail()
+        } else {
 
-
-        // If we accumulated some data on the stack before failing we need to clear it
-        val handler = ctx.handlers
-        val stackToDiscard = ctx.stack.usize - handler.stacksz 
-        if(stackToDiscard > 0) {
-            ctx.stack.drop(stackToDiscard)
+          
+            // If we accumulated some data on the stack before failing we need to clear it
+            val handler = ctx.handlers
+            val stackToDiscard = ctx.stack.usize - handler.stacksz 
+            if(stackToDiscard > 0) {
+              ctx.stack.drop(stackToDiscard)
+            }
+            // Update this handler to point to failure of recovery parser
+            // TODO (Dan) need to figure out how error stacks work here
+            assert(ctx.errorState.isLive, "Cannot begin recovery if there is no error")
+            
+            // Move error onto a recovery stack
+            ctx.moveErrorToRecovery()
+            handler.pc = label
+            ctx.good = true
+            ctx.inc()
+          }
         }
-        // Update this handler to point to failure of recovery parser
-        // TODO (Dan) need to figure out how error stacks work here
-        assert(ctx.errorState.isLive, "Cannot begin recovery if there is no error")
-   
-        // Move error onto a recovery stack
-        ctx.moveErrorToRecovery()
-        handler.pc = label
-        ctx.good = true
-        ctx.inc()
-    }
     // $COVERAGE-OFF$
     override def toString: String = s"BeginRecovery($label)"
     // $COVERAGE-ON$

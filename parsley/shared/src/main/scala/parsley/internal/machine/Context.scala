@@ -35,7 +35,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private val debug = false
     /** This is the operand stack, where results go to live  */
-    private [machine] val stack: ArrayStack[Any] = new ArrayStack()
+    private [machine] var stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
     private [machine] var offset: Int = 0
     /** The length of the input, stored for whatever reason */
@@ -73,6 +73,14 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] var checkOffset = 0
 
 
+    private [machine] var recoveryPoints: List[RecoveryState] = List.empty
+
+
+    private [machine] def isFatal = handlers.isEmpty
+
+    private [machine] var forceRecovery: Boolean = false
+
+      
 
     private [machine] def pushErrors(): Unit = {
         assert(!errorState.isLive, "Cannot push errors if we're in an error state")
@@ -144,6 +152,53 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         assert(this.errorState.isLive, "Cannot replace a recovery error unless there is a live error")
         this.errorState = LiveError(this.recoveryStack.error)
         this.recoveryStack = this.recoveryStack.tail
+    }
+
+
+    
+    def insertOrdered[A](elem: A, list: List[A])(compare: (A, A) => Boolean): List[A] = {
+        list.foldRight(List(elem)) { (current, acc) =>
+          if (compare(current, elem)) current :: acc
+          else elem :: current :: acc.tail
+        }
+    }
+
+    private [machine] def pushRecoveryPoint(): Unit = {
+
+        assume(this.errorState.isLive, "Cannot push recovery point if not live error")
+        val err = this.errorState match {
+            case LiveError(value) => value
+            case _ => ???
+        }
+
+        // TODO (Dan) what should we do with this error? the approach in general feels like you're losing a lot of relevant info on the failed parse
+        val recoveryPoint:RecoveryState = new RecoveryState(
+            this.errorStack, this.handlers, this.stack.clone(), 
+            this.calls, this.states, 
+            err,
+            this.pc, this.offset, this.line, this.col)
+
+        this.recoveryPoints = insertOrdered[RecoveryState](recoveryPoint, this.recoveryPoints)(_.offset > _.offset)
+    }
+
+    private [machine] def recoverToFurthestPoint(): Unit = {
+
+        val recoveryPoint = this.recoveryPoints.head
+
+        this.errorStack = recoveryPoint.errorStack
+        this.handlers = recoveryPoint.handlers
+        this.stack = recoveryPoint.data
+        this.states = recoveryPoint.states
+        this.calls = recoveryPoint.callStack
+
+        this.col = recoveryPoint.col
+        this.line= recoveryPoint.line
+        this.offset = recoveryPoint.offset
+        this.pc = recoveryPoint.pc
+        this.forceRecovery = true
+        this.errorState = LiveError(recoveryPoint.currentError)
+    
+        this.recoveryPoints = this.recoveryPoints.tail
     }
 
     // End: Error Recovery
@@ -328,14 +383,20 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     }
     private [machine] def fail(): Unit = {
         assert(!good, "fail() may only be called in a failing context, use `fail(err)` or set `good = false`")
-        if (handlers.isEmpty) running = false
-        else {
+        if (!handlers.isEmpty) {
             val handler = handlers
             instrs = handler.instrs
             calls = handler.calls
             pc = handler.pc
             val diffstack = stack.usize - handler.stacksz
             if (diffstack > 0) stack.drop(diffstack)
+        } else {
+            // try recover if not set running false
+            if(!recoveryPoints.isEmpty) {
+                this.recoverToFurthestPoint()
+            } else {
+                running = false
+            }
         }
     }
 

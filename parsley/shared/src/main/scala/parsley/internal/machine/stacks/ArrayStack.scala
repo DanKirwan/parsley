@@ -9,8 +9,8 @@ package parsley.internal.machine.stacks
 // Since elements are of type Any, this serves as a optimised implementation
 // Its success may result in the deprecation of the Stack class in favour of a generic version of this!
 private [machine] final class ArrayStack[A](initialSize: Int = ArrayStack.DefaultSize) {
-    private [this] var array: Array[Any] = new Array(initialSize)
-    private [this] var sp = -1
+    private var array: Array[Any] = new Array(initialSize)
+    private var sp = -1
 
     def push(x: A): Unit = {
         sp += 1
@@ -52,6 +52,13 @@ private [machine] final class ArrayStack[A](initialSize: Int = ArrayStack.Defaul
     def isEmpty: Boolean = sp == -1
     def mkString(sep: String): String = array.take(sp + 1).reverse.mkString(sep)
     // $COVERAGE-ON$
+
+    override def clone: ArrayStack[A] = {
+        val copy = new ArrayStack[A](size)
+        copy.array = this.array.clone()
+        copy.sp = this.sp
+        copy
+    }
 }
 private [machine] object ArrayStack {
     final val DefaultSize = 8

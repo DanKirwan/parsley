@@ -166,30 +166,31 @@ choice.parse("abe")
 
 val consumeUntilSemicolon: Parsley[String] = combinator.manyTill(satisfy(_ != ';'), char(';')).map(_.mkString)
 
-val rec1 = recoverWith('a', consumeUntilSemicolon)
-val rec2 = recoverWith('a', 'b')
+// val rec1 = recoverWith('a', consumeUntilSemicolon)
+// val rec2 = recoverWith('a', 'b')
 
-(rec2 *> rec2).parse("bx")
+// (rec2 *> rec2).parse("bx")
 
-val rec3 = recoverWith('a', recoverWith('x', 'b'))
+// val rec3 = recoverWith('a', recoverWith('x', 'b'))
 
-(rec3 *> rec3).parse("zh")
+// (rec3 *> rec3).parse("zh")
 
-recoverWith('a', 'b').parse("b")
-
-
-
-(rec2 *> parsley.Parsley.empty).parse("b")
+// recoverWith('a', 'b').parse("b")
 
 
 
-recoverWith('a','b').label("test").parse("x")
+// (rec2 *> parsley.Parsley.empty).parse("b")
 
 
-rec3.parse("b")
+
+// recoverWith('a','b').label("test").parse("x")
+
+
+// rec3.parse("b")
 
 
 val reca = recoverWith('a', 'c') | 'c'
+// Need to be aware that we're not currently stripping the live error from b so get the combined two errors
         reca.parse("c")
 
 
