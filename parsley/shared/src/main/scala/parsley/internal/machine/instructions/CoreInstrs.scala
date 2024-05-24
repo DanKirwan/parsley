@@ -158,7 +158,7 @@ private [internal] final class PushHandlerAndErrors(var label: Int) extends Inst
         ctx.inc()
     }
     // $COVERAGE-OFF$
-    override def toString: String = s"PushHandler($label)"
+    override def toString: String = s"PushHandlerAndErrors($label)"
     // $COVERAGE-ON$
 }
 

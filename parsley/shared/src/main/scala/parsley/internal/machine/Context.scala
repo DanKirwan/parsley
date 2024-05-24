@@ -70,7 +70,6 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] var recoverredErrors: List[DefuncError] = List.empty
 
-    // TODO (Dan) what does this mean?
     private [machine] var checkOffset = 0
 
 
@@ -129,7 +128,12 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] def commitRecoveredError() = {
         assume(!this.recoveryStack.isEmpty, "Cannot commit a recovered error if no recovered errors in flight");
-        this.recoverredErrors = this.recoveryStack.error :: this.recoverredErrors
+        // we only want to commit errors if there is nothing else on the recovery stack 
+        // otherwise we are accumulating errors in a recovery state
+        if(this.recoveryStack.tail.isEmpty) {
+            
+            this.recoverredErrors = this.recoveryStack.error :: this.recoverredErrors
+        }
         this.recoveryStack = this.recoveryStack.tail
     }
 

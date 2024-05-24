@@ -136,11 +136,13 @@ class ErrorRecoveryTests extends ParsleyTest {
         }
         inside(rec.parse("c")){
             case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
-                result shouldBe 'b'
-                unex should contain (Raw("b"))
+                result shouldBe 'c'
+                unex should contain (Raw("c"))
                 exs should contain only Raw("a")
         }
 
     }
+
+
 
 }
