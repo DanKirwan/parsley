@@ -213,6 +213,7 @@ private [internal] object EntrenchAndFail extends Instr {
         assert(ctx.errorState.isLive, "Cannot entrench l if we don't have a live error");
 
         ctx.errorState = ctx.errorState.map(e => e.entrench)
+        ctx.popAndMergeErrors()
         ctx.fail()
     }
 
@@ -228,6 +229,7 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
         // TODO (Dan) do we need to do anything with accumulator errors
         assert(ctx.errorState.isLive, "Cannot dislodge if we don't have a live error");
         ctx.errorState = ctx.errorState.map(e => e.dislodge(n))
+        ctx.popAndMergeErrors()
         ctx.fail()
     }
 
@@ -241,6 +243,7 @@ private [internal] object SetLexicalAndFail extends Instr {
         ensureHandlerInstruction(ctx)
         assert(ctx.errorState.isLive, "Cannot set lexical if we don't have a live error");
         ctx.errorState = ctx.errorState.map(x => x.markAsLexical(ctx.handlers.check))
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
