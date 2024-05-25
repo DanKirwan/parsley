@@ -204,6 +204,15 @@ class ErrorTests extends ParsleyTest {
         }
     }
 
+    it should "only affect the combinator it's applied to - not previous ones" in {
+        inside((combinator.optional('a') *> 'b'.hide | 'c').parse("x")) {
+            case Failure(TestError((1, 1), VanillaError(unex, exs, rs, 1))) =>
+                unex should contain (Raw("x"))
+                exs should contain.only(Raw("a"), Raw("c"))
+                rs shouldBe empty
+        }
+    }
+
     it should "suppress hints even if input is consumed" in {
         inside((many(digit).hide <* eof).parse("1e")) {
             case Failure(TestError((1, 2), VanillaError(unex, exs, rs, 1))) =>

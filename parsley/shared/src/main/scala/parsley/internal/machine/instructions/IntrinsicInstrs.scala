@@ -13,7 +13,6 @@ import parsley.token.errors.LabelConfig
 import parsley.internal.errors.{EndOfInput, ExpectDesc, ExpectItem}
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
-import parsley.internal.machine.stacks.Stack.StackExt
 import parsley.internal.machine.errors.NoError
 
 private [internal] final class Lift2(f: (Any, Any) => Any) extends Instr {

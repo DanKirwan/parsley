@@ -169,7 +169,14 @@ class ErrorRecoveryTests extends ParsleyTest {
         }
     }
 
+    it should "recover at the deepest point first" in {
+        inside((recoverWith('a', 'c') | 'b').parse("c")) {
+            case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
+                result shouldBe 'c'
+                unex should contain (Raw("c"))
+                exs should contain only Raw("a")
+        }
+    }
     
-
-
+    
 }

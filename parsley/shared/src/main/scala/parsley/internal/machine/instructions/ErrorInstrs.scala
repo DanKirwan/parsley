@@ -50,6 +50,7 @@ private [internal] final class RelabelHints(labels: Iterable[String]) extends In
 
         // TODO (Dan) figure out if we need the agressive isHide
 
+        assert(!ctx.errorState.isLive, "cannot label accumulator if in live state")
         // Here we may have no hints in which case we just ignore relabelling them
         if(isHide) ctx.errorState = NoError
         else if(ctx.offset == ctx.handlers.check) ctx.errorState = ctx.errorState.map(e => e.label(labels, ctx.offset))
@@ -97,6 +98,7 @@ private [internal] object HideHints extends Instr {
         // ctx.liveError = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
         ctx.errorState = NoError
 
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.inc()
     }
@@ -114,6 +116,7 @@ private [internal] object HideErrorAndFail extends Instr {
         // ctx.errs.error = new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0)
         assert(ctx.errorState.isLive, "Cannot hide if we don't have a live error");
         ctx.errorState = LiveError(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }

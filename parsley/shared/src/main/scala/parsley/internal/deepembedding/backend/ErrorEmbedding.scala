@@ -33,7 +33,7 @@ private [deepembedding] final class ErrorLabel[A](val p: StrictParsley[A], priva
     // $COVERAGE-ON$
 }
 private [deepembedding] final class ErrorHide[A](val p: StrictParsley[A]) extends ScopedUnary[A, A] {
-    override def setup(label: Int): instructions.Instr = new instructions.PushHandler(label)
+    override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label)
     override def instr: instructions.Instr = instructions.HideHints
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int = state.getLabel(instructions.HideErrorAndFail)
