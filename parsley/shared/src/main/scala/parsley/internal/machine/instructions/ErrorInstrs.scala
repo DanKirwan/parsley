@@ -14,12 +14,29 @@ import parsley.internal.machine.stacks.Stack.StackExt
 import parsley.internal.machine.errors.LiveError
 import parsley.internal.machine.errors.NoError
 
+
+
+private [internal] abstract class ScopeExit(val isErrorScope: Boolean, val isStateScope: Boolean) extends Instr {
+
+    override def apply(ctx: Context): Unit = {
+        ensureRegularInstruction(ctx)
+        cleanup(ctx)
+        
+        ctx.handlers = ctx.handlers.tail
+        if(isStateScope) ctx.states = ctx.states.tail
+        if(isErrorScope) ctx.popAndMergeErrors()
+
+        ctx.inc()
+    }
+
+    def cleanup(ctx: Context): Unit
+}
 /**
   * This is used at the beginning of a new choice option 
   * It will merge the existing errors in live into the choice accumulator
   *
   */
-private [internal] final object ClearLiveError extends Instr {
+private [internal] object ClearLiveError extends Instr {
 
     override def apply(ctx: Context): Unit = {
         ctx.makeErrorAccumulator()
@@ -32,48 +49,9 @@ private [internal] final object ClearLiveError extends Instr {
 }
 
 
-private [internal] final class RelabelHints(labels: Iterable[String]) extends Instr {
-    private [this] val isHide: Boolean = labels.isEmpty
-    override def apply(ctx: Context): Unit = {
-        ensureRegularInstruction(ctx)
-        // TOOD 
-        // if hiding - remove everythig in hints? - relies on knowing where handler takes hints? - amend?
-        // if this was a hide, pop the hints if possible
-        // this is desirable so that hide is _very_ aggressive with labelling:
-        // whitespaces.hide should say nothing, but digits.label("integer") should give digit as a hint if one is parsed, not integer
-        // if (isHide) ctx.popHints()
-        // // EOK
-        // // replace the head of the hints with the singleton for our label
-        // else if (ctx.offset == ctx.handlers.check) ctx.replaceHint(labels)
-        // COK
-        // do nothing
-
-        // TODO (Dan) figure out if we need the agressive isHide
-
-        assert(!ctx.errorState.isLive, "cannot label accumulator if in live state")
-        // Here we may have no hints in which case we just ignore relabelling them
-        if(isHide) ctx.errorState = NoError
-        else if(ctx.offset == ctx.handlers.check) ctx.errorState = ctx.errorState.map(e => e.label(labels, ctx.offset))
-
-        ctx.popAndMergeErrors()
-        ctx.handlers = ctx.handlers.tail
-        ctx.inc()
-    }
-    // $COVERAGE-OFF$
-    override def toString: String = s"RelabelHints($labels)"
-    // $COVERAGE-ON$
-}
-
 private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        // this has the effect of relabelling all hints since the start of the label combinator
-        // ctx.restoreHints()
-        // ctx.errs.error = ctx.useHints {
-        //     // only use the label if the error message is generated at the same offset
-        //     // as the check stack saved for the start of the `label` combinator.
-        //     ctx.errs.error.label(labels, ctx.handlers.check)
-        // }
 
         // TODO (Dan) replace with context calls 
         assert(ctx.errorState.isLive, "Cannot relabel if we don't have a live error");
@@ -88,32 +66,28 @@ private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) ext
     // $COVERAGE-ON$
 }
 
-private [internal] object HideHints extends Instr {
-    override def apply(ctx: Context): Unit = {
-        // TODO (Dan) when do we want hide hints vs HideErrorAndFail
-        ensureRegularInstruction(ctx)
-        // ctx.popHints()
-        // ctx.mergeHints()
-        assert(!ctx.errorState.isLive, "Cannot hide accumulator errors if we have an existing error")
-        // ctx.liveError = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
-        ctx.errorState = NoError
 
-        ctx.popAndMergeErrors()
-        ctx.handlers = ctx.handlers.tail
-        ctx.inc()
+private [internal] class RelabelExit(labels: Iterable[String]) extends ScopeExit(true, false) {
+    private val isHide = labels.isEmpty
+    override def cleanup(ctx: Context): Unit = {
+        assert(!ctx.errorState.isLive, "cannot label accumulator if in live state")
+        // Here we may have no hints in which case we just ignore relabelling them
+        if(isHide) ctx.errorState = NoError
+        else if(ctx.offset == ctx.handlers.check) ctx.errorState = ctx.errorState.map(e => e.label(labels, ctx.offset))
+
+        
+
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.label(labels, ctx.handlers.check))
     }
     // $COVERAGE-OFF$
-    override def toString: String = "HideHints"
+    override def toString: String = "RelabelExit"
     // $COVERAGE-ON$
 }
 
 // FIXME: Gigaparsec points out the hints aren't being used here, I believe they should be!
 private [internal] object HideErrorAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
-        // TODO (Dan) figure out difference between this and above and why we need the extra instructions 
         ensureHandlerInstruction(ctx)
-        // TODO (Dan) figure out my equivalent of restore hints
-        // ctx.errs.error = new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0)
         assert(ctx.errorState.isLive, "Cannot hide if we don't have a live error");
         ctx.errorState = LiveError(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
         ctx.popAndMergeErrors()
@@ -124,6 +98,22 @@ private [internal] object HideErrorAndFail extends Instr {
     override def toString: String = "HideErrorAndFail"
     // $COVERAGE-ON$
 }
+
+
+
+private [internal] object HideExit extends ScopeExit(true, false) {
+
+    override def cleanup(ctx: Context): Unit = {
+        assert(!ctx.errorState.isLive, "Cannot hide accumulator errors if we have an existing error")
+        // TODO (Dan) confirm we want to set error state here and set list empty?
+        ctx.errorState = NoError
+        ctx.recoveredErrors = List.empty
+    }
+    // $COVERAGE-OFF$
+    override def toString: String = "HideExit"
+    // $COVERAGE-ON$
+}
+
 
 private [internal] object ErrorToHints extends Instr {
     override def apply(ctx: Context): Unit = {
@@ -153,10 +143,7 @@ private [internal] object MergeErrorsAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         // TODO (Dan) why does this remove a handler?
-        ctx.handlers = ctx.handlers.tail
- 
-
-    
+        ctx.handlers = ctx.handlers.tail   
         ctx.fail()
     }
 
@@ -183,6 +170,19 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
 }
 
 
+private [internal] class ReasonExit(reason: String) extends ScopeExit(true, false) {
+
+    override def cleanup(ctx: Context): Unit = {
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.withReason(reason, ctx.handlers.check))
+    }
+    // $COVERAGE-OFF$
+    override def toString: String = s"ReasonExit($reason)"
+    // $COVERAGE-ON$
+
+}
+
+
+
 private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
@@ -205,6 +205,19 @@ private [internal] object AmendAndFail {
     def apply(partial: Boolean): AmendAndFail = if (partial) this.partial else this.full
 }
 
+private [internal] class AmendExit(partial: Boolean) extends ScopeExit(true, true) {
+
+    override def cleanup(ctx: Context): Unit = {
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
+    }
+    
+    // $COVERAGE-OFF$
+    override def toString: String = s"AmendExit"
+    // $COVERAGE-ON$
+
+}
+
+
 private [internal] object EntrenchAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
@@ -213,6 +226,7 @@ private [internal] object EntrenchAndFail extends Instr {
         assert(ctx.errorState.isLive, "Cannot entrench l if we don't have a live error");
 
         ctx.errorState = ctx.errorState.map(e => e.entrench)
+
         ctx.popAndMergeErrors()
         ctx.fail()
     }
@@ -221,6 +235,18 @@ private [internal] object EntrenchAndFail extends Instr {
     override def toString: String = "EntrenchAndFail"
     // $COVERAGE-ON$
 }
+
+
+private [internal] object EntrenchExit extends ScopeExit(true, false) {
+    override def cleanup(ctx: Context): Unit = {
+        ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.entrench)
+    }
+
+    
+    // $COVERAGE-OFF$
+    override def toString: String = "EntrenchExit"
+    // $COVERAGE-ON$
+  }
 
 private [internal] class DislodgeAndFail(n: Int) extends Instr {
     override def apply(ctx: Context): Unit = {
@@ -238,6 +264,18 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
     // $COVERAGE-ON$
 }
 
+
+private [internal] class DislodgeExit(n: Int) extends ScopeExit(true, false) {
+    override def cleanup(ctx: Context): Unit = {
+        ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.dislodge(n))
+    }
+
+    
+    // $COVERAGE-OFF$
+    override def toString: String = "DislodgeExit"
+    // $COVERAGE-ON$
+}
+
 private [internal] object SetLexicalAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
@@ -251,6 +289,12 @@ private [internal] object SetLexicalAndFail extends Instr {
     // $COVERAGE-OFF$
     override def toString: String = "SetLexicalAndFail"
     // $COVERAGE-ON$
+}
+
+private [internal] object LexicalExit extends ScopeExit(true, false) {
+  override def cleanup(ctx: Context): Unit = {
+    ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.markAsLexical(ctx.handlers.check))
+  }
 }
 
 private [internal] final class Fail(width: CaretWidth, msgs: String*) extends Instr {

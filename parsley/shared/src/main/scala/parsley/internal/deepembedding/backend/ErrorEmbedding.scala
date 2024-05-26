@@ -14,7 +14,7 @@ import parsley.internal.machine.instructions
 private [deepembedding] final class ErrorLabel[A](val p: StrictParsley[A], private val label: String, private val labels: scala.Seq[String])
     extends ScopedUnary[A, A] {
     override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label) // was AndClearHints
-    override def instr: instructions.Instr = new instructions.RelabelHints(label +: labels)
+    override def instr: instructions.Instr = new instructions.RelabelExit(label +: labels)
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int = state.getLabelForRelabelError(label +: labels)
     // don't need to be limited to not hidden when the thing can never internally generate hints
@@ -34,7 +34,7 @@ private [deepembedding] final class ErrorLabel[A](val p: StrictParsley[A], priva
 }
 private [deepembedding] final class ErrorHide[A](val p: StrictParsley[A]) extends ScopedUnary[A, A] {
     override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label)
-    override def instr: instructions.Instr = instructions.HideHints
+    override def instr: instructions.Instr = instructions.HideExit
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int = state.getLabel(instructions.HideErrorAndFail)
 
@@ -44,7 +44,7 @@ private [deepembedding] final class ErrorHide[A](val p: StrictParsley[A]) extend
 }
 private [deepembedding] final class ErrorExplain[A](val p: StrictParsley[A], reason: String) extends ScopedUnary[A, A] {
     override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label)
-    override def instr: instructions.Instr = instructions.PopHandlerAndErrors
+    override def instr: instructions.Instr = new instructions.ReasonExit(reason)
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int  = state.getLabelForApplyReason(reason)
     // $COVERAGE-OFF$
@@ -53,7 +53,7 @@ private [deepembedding] final class ErrorExplain[A](val p: StrictParsley[A], rea
 }
 
 private [deepembedding] final class ErrorAmend[A](val p: StrictParsley[A], partial: Boolean) extends ScopedUnaryWithState[A, A] {
-    override val instr: instructions.Instr = instructions.PopHandlerAndStateAndErrors
+    override val instr: instructions.Instr = new instructions.AmendExit(partial)
     override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndStateAndErrors(label)
 
     override def instrNeedsLabel: Boolean = false
@@ -64,7 +64,7 @@ private [deepembedding] final class ErrorAmend[A](val p: StrictParsley[A], parti
 }
 private [deepembedding] final class ErrorEntrench[A](val p: StrictParsley[A]) extends ScopedUnary[A, A] {
     override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label)
-    override val instr: instructions.Instr = instructions.PopHandlerAndErrors
+    override val instr: instructions.Instr = instructions.EntrenchExit
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int  = state.getLabel(instructions.EntrenchAndFail)
     // $COVERAGE-OFF$
@@ -74,7 +74,7 @@ private [deepembedding] final class ErrorEntrench[A](val p: StrictParsley[A]) ex
 
 private [deepembedding] final class ErrorDislodge[A](n: Int, val p: StrictParsley[A]) extends ScopedUnary[A, A] {
     override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label)
-    override val instr: instructions.Instr = instructions.PopHandlerAndErrors
+    override val instr: instructions.Instr = new instructions.DislodgeExit(n)
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int  = state.getLabelForDislodgeAndFail(n)
     // $COVERAGE-OFF$
@@ -86,7 +86,7 @@ private [deepembedding] final class ErrorLexical[A](val p: StrictParsley[A]) ext
     // This needs to save the hints because error label will relabel the first hint, which because the list is ordered would be the hints that came _before_
     // entering labels context. Instead label should relabel the first hint generated _within_ its context, then merge with the originals after
     override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label)
-    override def instr: instructions.Instr = instructions.PopHandlerAndErrors
+    override def instr: instructions.Instr = instructions.LexicalExit
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int = state.getLabel(instructions.SetLexicalAndFail)
 

@@ -33,7 +33,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                                       numRegs: Int,
                                       private val sourceFile: Option[String]) {
 
-    private val debug = true
+    private val debug = false
     /** This is the operand stack, where results go to live  */
     private [machine] var stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
@@ -68,7 +68,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] var recoveryStack: ErrorStack = Stack.empty
 
-    private [machine] var recoverredErrors: List[DefuncError] = List.empty
+    private [machine] var recoveredErrors: List[DefuncError] = List.empty
 
     private [machine] var checkOffset = 0
 
@@ -83,9 +83,15 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
       
 
     private [machine] def pushErrors(): Unit = {
+        // Normal Errors
         assert(!errorState.isLive, "Cannot push errors if we're in an error state")
-        errorStack = new ErrorStateStack(this.errorState, this.errorStack)
+        errorStack = new ErrorStateStack((this.errorState, this.recoveredErrors), this.errorStack)
         this.errorState = NoError;
+        
+
+        // Recovered errors
+        this.recoveredErrors = List.empty
+        
     }
 
 
@@ -97,7 +103,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
       * If no live error, merge the accumulators
       */
     private [machine] def popAndMergeErrors(): Unit = {
-        val stackError = this.errorStack.errorState;
+        // Normal errors
+        val (stackError, stackRecoveredErrors) = this.errorStack.errorState;
         assert(!stackError.isLive, "Cannot pop errors if we have existing live errors")
 
         this.errorStack = this.errorStack.tail
@@ -108,6 +115,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             //todo make sure this is being done right?
             case someError => someError.flatMap(e => this.errorState.map(_.merge(e))).orElse(someError)
         }
+
+        this.recoveredErrors = this.recoveredErrors ++ stackRecoveredErrors
 
     }
 
@@ -139,7 +148,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         // we only want to commit errors if there is nothing else on the recovery stack 
         // otherwise we are accumulating errors in a recovery state
         if(this.recoveryStack.tail.isEmpty) {
-            this.recoverredErrors = this.recoveryStack.error :: this.recoverredErrors
+            this.recoveredErrors = this.recoveryStack.error :: this.recoveredErrors
         }
         this.recoveryStack = this.recoveryStack.tail
     }
@@ -263,11 +272,11 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             assert(states.isEmpty, "there must be no residual states left at end of parse")
             // assert(errs.isEmpty, "there should be no parse errors remaining at end of parse")
 
-            if(recoverredErrors.isEmpty) {
+            if(recoveredErrors.isEmpty) {
 
                 Success(stack.peek[A])
             } else {
-                val errs = recoverredErrors.map(_.asParseError.format(sourceFile))
+                val errs = recoveredErrors.map(_.asParseError.format(sourceFile))
                 Recovered(stack.peek[A], recoveredErrors = errs)
             }
         }
@@ -287,10 +296,10 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                 case _ => ???
             }
 
-            if(recoverredErrors.isEmpty) {
+            if(recoveredErrors.isEmpty) {
                 Failure(error.asParseError.format(sourceFile))
             } else {
-                val allErrs = error :: recoverredErrors
+                val allErrs = error :: recoveredErrors
                 MultiFailure(allErrs.map(_.asParseError.format(sourceFile)))
             }
         }

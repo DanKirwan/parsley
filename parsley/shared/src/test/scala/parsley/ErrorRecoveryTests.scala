@@ -13,6 +13,10 @@ import parsley.errors.combinator.{fail => pfail, unexpected, amend, partialAmend
 import parsley.errors.patterns._
 import parsley.errors.SpecializedGen
 import parsley.unicode.satisfy
+import parsley.state._
+import parsley.lift._
+
+
 
 class ErrorRecoveryTests extends ParsleyTest {
 
@@ -84,8 +88,24 @@ class ErrorRecoveryTests extends ParsleyTest {
         }
     }
 
+    it should "accumulate and allow error operations on the relevant messages" in {
+        inside( ( recoverWith('a', 'b') <* recoverWith('x', 'y').label("test")).parse("bb") ) {
+            case MultiFailure(
+                TestError((1,2), VanillaError(unex1, exs1, rs1, 1)) :: 
+                TestError((1,1), VanillaError(unex2, exs2, rs2, 1)) :: 
+                    Nil) => 
+                unex1 should contain (Raw("b"))
+                exs1 should contain only (Named("test"))
+                unex2 should contain (Raw("b"))
+                exs2 should contain only Raw("a")
+                rs1 shouldBe empty
+                rs2 shouldBe empty
 
-    "error recovery" should "apply labels only if not recovered" in {
+        }
+    }
+
+
+    "error recovery" should "apply labels regardless if recovered" in {
         val rec = recoverWith('a', 'b').label("test")
         (rec.parse("a")) shouldBe a [Success[_]]
 
@@ -93,7 +113,7 @@ class ErrorRecoveryTests extends ParsleyTest {
             case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
                 result shouldBe 'b'
                 unex should contain (Raw("b"))
-                exs should contain only Raw("a")
+                exs should contain only Named("test")
         }
 
         inside(rec.parse("x")) {
@@ -214,14 +234,187 @@ class ErrorRecoveryTests extends ParsleyTest {
     }
     
 
-    "recovered errors" should "not be affected by combinators outside the recover scope" in {
+    "recovered errors" should "be affected by combinators outside the recover scope" in {
         inside((amend("zzz" *> recoverWith('a', 'b'))).parse("zzzb")) {
-            case Recovered(result, TestError((1,4), VanillaError(unex, exs, rs, 1)) :: Nil) => 
+            case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
                 result shouldBe 'b'
-                unex should contain (Raw("b"))
+                unex should contain (Raw("z"))
                 exs should contain only Raw("a")
 
         }
+
+        inside((amend("zzz" *> recoverWith('a', 'b')).label("test")).parse("zzzb")) {
+            case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
+                result shouldBe 'b'
+                unex should contain (Raw("z"))
+                exs should contain only Named("test")
+
+        }
+
+        inside(recoverWith('a', 'b').label("test").parse("b")) {
+            case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
+                result shouldBe 'b'
+                unex should contain (Raw("b"))
+                exs should contain only (Named("test"))
+        }
     }
+
+    "fatal errors" should "be affected by combinators outside the recover scope" in {
+        inside((amend("zzz" *> recoverWith('a', 'b'))).parse("zzzz")) {
+            case Failure(TestError((1,1), VanillaError(unex, exs, rs, 1))) => 
+                unex should contain (Raw("z"))
+                exs should contain only Raw("a")
+
+        }
+
+        inside((amend("zzz" *> recoverWith('a', 'b')).label("test")).parse("zzzz")) {
+            case Failure(TestError((1,1), VanillaError(unex, exs, rs, 1))) => 
+                unex should contain (Raw("z")) 
+                exs should contain only (Named("test"))
+
+        }
+
+        inside((recoverWith('a', 'b')).label("test").parse("z")) {
+            case Failure(TestError((1,1), VanillaError(unex, exs, rs, 1))) => 
+                unex should contain (Raw("z"))
+                exs should contain only (Named("test"))
+        }
+    }
+
+
+    "failed recovery" should "not not keep error messages from failed previous recovery attempts if an attempt is successful" in {
+        
+        val failFirst = atomic(recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('1')));
+        val failSecond = atomic('b' *> recoverWith('c', 'x' *> pure('2') *> Parsley.empty));
+        val failSecondAfterRecover = atomic('b' *> recoverWith('c', 'x' *> pure('2')) *> Parsley.empty);
+
+        inside((failSecond | failFirst).parse("bx")) {
+            case Recovered(result, TestError((1,1), _) :: Nil) => result shouldBe '1'
+        }
+
+        inside((failSecondAfterRecover | failFirst).parse("bx")) {
+            case Recovered(result, TestError((1,1), _) :: Nil) => result shouldBe '1'
+        }
+        
+        inside((failFirst | failSecond).parse("bx")) {
+            case Recovered(result, TestError((1,1), _) :: Nil) => result shouldBe '1'
+        }
+
+        inside((failFirst | failSecondAfterRecover).parse("bx")) {
+            case Recovered(result, TestError((1,1), _) :: Nil) => result shouldBe '1'
+        }
+    }
+
+
+    it should "follow the path of deepest recovery if no recovered parse is possible" in {
+        
+        val failFirst = atomic(recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('1') *> Parsley.empty));
+        val failFirstAfterRecover = atomic(recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('1')) *> Parsley.empty);
+        val failSecond = atomic('b' *> recoverWith('c', 'x' *> pure('2') *> Parsley.empty));
+        val failSecondAfterRecover = atomic('b' *> recoverWith('c', 'x' *> pure('2')) *> Parsley.empty);
+
+
+        for (first <- Seq(failFirst, failFirstAfterRecover))  {
+            for(second <- Seq(failSecond, failSecondAfterRecover)) {
+                inside((first | second).parse("bx")) {
+                    case Failure(TestError((1,2), _)) => 
+                }
+            }
+        }
+
+    }
+
+
+    "stateful error recovery" should "not effect persistent state in successful parses" in {
+        val p = 5.makeRef { r1 =>
+            7.makeRef { r2 =>
+                recoverWith(r1.set(lift2[Int, Int, Int](_+_, r1.get, r2.get)) *> (r1.get zip r2.gets(_+1)), Parsley.empty)
+            }
+        }
+        p.parse("") should be (Success((12, 8)))
+    }
+
+
+    it should "case with updateDuring?" in {
+
+    }
+
+    they should "be modifiable" in {
+        val p = 5.makeRef(r1 => r1.update(_+1) *> r1.get)
+        p.parse("") should be (Success(6))
+    }
+    they should "provide localised context" in {
+        val r1 = Ref.make[Int]
+        val p = r1.set(5) *> (r1.updateDuring(_+1)(r1.get) zip r1.get)
+        val q = r1.set(5) *> (r1.setDuring(6)(r1.get) <~> r1.get)
+        p.parse("") should be (Success((6, 5)))
+        q.parse("") should be (Success((6, 5)))
+    }
+    they should "be correctly allocated when found inside recursion" in {
+        val r1 = Ref.make[Int]
+        lazy val rec: Parsley[Unit] = 'a' *> r1.set(1) *> rec <|> unit
+        val p = "hello :)".makeRef(r2 => rec *> r2.get)
+        p.parse("a") shouldBe Success("hello :)")
+    }
+    they should "be correctly allocated when found inside sub-routines" in {
+        val r1 = Ref.make[Int]
+        val q = 'a' *> r1.set(1)
+        val p = "hello :)".makeRef(r2 => q *> q *> r2.get)
+        p.parse("aa") shouldBe Success("hello :)")
+    }
+    they should "be preserved by callee-save in flatMap" in {
+        val p = "hello world".makeRef(r2 => {
+            6.makeRef(r1 => {
+                unit.flatMap(_ => 4.makeRef(_ => r2.set("hi"))) *>
+                (r1.get <~> r2.get)
+            })
+        })
+        p.parse("") shouldBe Success((6, "hi"))
+    }
+    they should "be preserved by callee-save in flatMap even when it fails" in {
+        val p = "hello world".makeRef(r2 => {
+            6.makeRef(r1 => {
+                combinator.optional(unit.flatMap(_ => r2.set("hi") *> 4.makeRef(_ => Parsley.empty))) *>
+                (r1.get zip r2.get)
+            })
+        })
+        p.parse("") shouldBe Success((6, "hi"))
+    }
+    they should "be able to be rolled back if they fail softly" in {
+        val p = 3.makeRef(r1 => (r1.rollback(r1.set(2) *> Parsley.empty) <|> unit) *> r1.get)
+        p.parse("") shouldBe Success(3)
+    }
+    they should "but not roll back if they hard fail" in {
+        val p = 3.makeRef(r1 => (atomic(r1.rollback('a' *> r1.set(2) *> Parsley.empty)) <|> unit) *> r1.get)
+        p.parse("a") shouldBe Success(2)
+    }
+    they should "not rollback if successful" in {
+        val p = 3.makeRef(r1 => r1.rollback(r1.set(2)) *> r1.get)
+        p.parse("") shouldBe Success(2)
+    }
+    they should "support more than 4 registers" in {
+        def loop(n: Int): Parsley[List[Char]] = {
+            if (n == 0) pure(Nil)
+            else item.fillRef { c => c.get <::> loop(n-1) }
+        }
+        val p = loop(16)
+        p.parse("abcdefghijklmnop") shouldBe Success(List('a', 'b', 'c','d', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'))
+    }
+
+    // "fillReg" should "appear to create a fresh register every time its invoked" in {
+    //     def inc(reg: Ref[Int]): Parsley[Int] = reg.get <* reg.update(_ + 1)
+    //     val p = 0.makeRef { i =>
+    //         // the register j is static, however, each recursive call should save its value, making it appear dynamic
+    //         lazy val p: Parsley[List[Int]] = 'a' *> inc(i).fillRef(j => (p, j.get).zipped(_ :+ _) <* 'b') <|> pure(Nil)
+    //         p
+    //     }
+    //     p.parse("aaabbb") shouldBe Success(List(2, 1, 0))
+    // }
+
+    it should "also appear to create a fresh register even in the presence of a hard failure" in {
+        lazy val p: Parsley[Char] = item.fillRef(c => item *> (atomic(p) <|> c.get))
+        p.parse("abc") shouldBe Success('a')
+    }
+    
     
 }
