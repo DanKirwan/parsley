@@ -104,6 +104,16 @@ class ErrorRecoveryTests extends ParsleyTest {
         }
     }
 
+    // Displays the rule recoverWith(recoverWith(a, b), c) == recoverWith(a, b | c)
+    "nested recovery" should "attempt latest first" in {
+        inside(recoverWith(recoverWith('a' , 'b' *> pure('x')), 'b' *> pure('y')).parse("b")) {
+            case Recovered(result, TestError((1,1), VanillaError(unex, exs, _, _)) :: Nil) =>
+                result shouldBe 'x'
+                unex should contain (Raw("b"))
+                exs should contain only (Raw("a")) 
+        }
+    }
+
 
     "error recovery" should "apply labels regardless if recovered" in {
         val rec = recoverWith('a', 'b').label("test")

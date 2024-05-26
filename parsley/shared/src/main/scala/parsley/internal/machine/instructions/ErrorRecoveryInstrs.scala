@@ -58,7 +58,7 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
             assert(ctx.errorState.isLive, "Cannot begin recovery if there is no error")
             
             // Move error onto a recovery stack
-            ctx.moveErrorToRecovery()
+            ctx.beginRecovery()
             handler.pc = label
             ctx.good = true
             ctx.inc()
@@ -85,7 +85,7 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
         // Move the error from recovery stack to list of actual errors
         ctx.handlers = ctx.handlers.tail
 
-        ctx.commitRecoveredError();
+        ctx.succeedRecovery();
         ctx.errorState = NoError
         ctx.popAndMergeErrors()
         
@@ -109,7 +109,7 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
         assert(ctx.errorState.isLive, "Recovery must have thrown a live error");
 
         // Move the error from recovery stack to list of actual errors
-        ctx.replaceRecoveryError()
+        ctx.failRecovery()
         ctx.handlers = ctx.handlers.tail
         ctx.popAndMergeErrors()
         ctx.fail()

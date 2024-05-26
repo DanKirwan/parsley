@@ -20,7 +20,7 @@ import parsley.internal.machine.errors.{ClassicFancyError, DefuncError, DefuncHi
                                         ErrorItemBuilder, ExpectedError, ExpectedErrorWithReason, UnexpectedError}
 
 import instructions.Instr
-import stacks.{ArrayStack, CallStack, ErrorStack, ErrorStateStack, HandlerStack, Stack, StateStack}, Stack.StackExt
+import stacks.{ArrayStack, CallStack, ErrorStack, ErrorStateStack, HandlerStack, RecoveryStack, Stack, StateStack}, Stack.StackExt
 import parsley.internal.machine.errors.ErrorState
 import parsley.internal.machine.errors.NoError
 import parsley.internal.machine.errors.LiveError
@@ -66,7 +66,21 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] var errorStack: ErrorStateStack = Stack.empty
 
-    private [machine] var recoveryStack: ErrorStack = Stack.empty
+    // In Recovery
+    /**
+      * The error which caused the beginning of this recovery
+      */
+    private [machine] var parkedError: Option[DefuncError] = None
+    /**
+      * If we have recovery within recovery, we need to disregard these errors 
+      * but keep the state so we record just the depth and when it hits 0, parked error is 
+      * the original error to display to the user
+      */
+    private [machine] var recoveryDepth: Int = 0
+
+
+    // Recovery Contrl Flow
+
 
     private [machine] var recoveredErrors: List[DefuncError] = List.empty
 
@@ -74,6 +88,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
 
     private [machine] var recoveryPoints: List[RecoveryState] = List.empty
+    private [machine] var recoveryStack: RecoveryStack = Stack.empty
 
 
     private [machine] def isFatal = handlers.isEmpty
@@ -133,34 +148,46 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     // Error Recovery
 
-    private [machine] def moveErrorToRecovery() = {
+    private [machine] def beginRecovery() = {
         assume(this.errorState.isLive, "Cannot move error to recovery if not live")
-        val err = this.errorState match {
-            case LiveError(value) => value
-            case _ => ???
+        if(this.recoveryDepth == 0) {
+            val err = this.errorState match {
+                case LiveError(value) => value
+                case _ => ???
+            }
+            this.parkedError = Some(err)
         }
-        this.recoveryStack = new ErrorStack(err, this.recoveryStack)
+
+        this.recoveryDepth += 1
+        // Regardless of whether we keep the error we need to clear it when we begin recovering
         this.errorState = NoError
     }
 
-    private [machine] def commitRecoveredError() = {
-        assume(!this.recoveryStack.isEmpty, "Cannot commit a recovered error if no recovered errors in flight");
-        // we only want to commit errors if there is nothing else on the recovery stack 
-        // otherwise we are accumulating errors in a recovery state
-        if(this.recoveryStack.tail.isEmpty) {
-            this.recoveredErrors = this.recoveryStack.error :: this.recoveredErrors
+    private [machine] def succeedRecovery() = {
+        assume(this.parkedError.isDefined, "Cannot commit a recovered error if no recovered errors in flight");
+        assume(this.recoveryDepth > 0, "need at least one recovery scope")
+        this.recoveryDepth -= 1
+        
+        // we only want errors if at base recovery combinator 
+        //otherwise we are accumulating errors in a recovery state
+        if(this.recoveryDepth == 0) {
+            this.recoveredErrors = this.parkedError.get :: this.recoveredErrors
+            this.parkedError = None
         }
-        this.recoveryStack = this.recoveryStack.tail
     }
 
     /**
-      * When recovery fails, we want to keep the message from the original parser not the recovery parser
+      * When recovery fails, we want to keep the message from the original fail not recovery
+      * Only handled in case of base recovery state for efficiency
       */
 
-    private [machine] def replaceRecoveryError() = {
+    private [machine] def failRecovery() = {
         assert(this.errorState.isLive, "Cannot replace a recovery error unless there is a live error")
-        this.errorState = LiveError(this.recoveryStack.error)
-        this.recoveryStack = this.recoveryStack.tail
+        this.recoveryDepth -= 1
+        if(this.recoveryDepth == 0) {
+            this.errorState = LiveError(this.parkedError.get)
+            this.parkedError = None
+        }
     }
 
 
@@ -186,7 +213,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             err,
             this.pc, this.offset, this.line, this.col)
 
-        this.recoveryPoints = insertOrdered[RecoveryState](recoveryPoint, this.recoveryPoints)(_.offset > _.offset)
+        this.recoveryPoints = insertOrdered[RecoveryState](recoveryPoint, this.recoveryPoints)(_.offset >= _.offset)
     }
 
     private [machine] def recoverToFurthestPoint(): Unit = {
