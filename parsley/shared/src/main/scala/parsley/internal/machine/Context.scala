@@ -33,7 +33,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                                       numRegs: Int,
                                       private val sourceFile: Option[String]) {
 
-    private val debug = false
+    private val debug = true
     /** This is the operand stack, where results go to live  */
     private [machine] var stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
@@ -171,7 +171,6 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             case _ => ???
         }
 
-        // TODO (Dan) what should we do with this error? the approach in general feels like you're losing a lot of relevant info on the failed parse
         val recoveryPoint:RecoveryState = new RecoveryState(
             this.errorStack, this.handlers, this.stack.clone(), 
             this.calls, this.states, 
@@ -184,6 +183,14 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] def recoverToFurthestPoint(): Unit = {
 
         val recoveryPoint = this.recoveryPoints.head
+
+        if(debug) {
+            println("Beginning Recovery")
+            println(this.recoveryPoints.mkString)
+            println(s"At (${recoveryPoint.line}, ${recoveryPoint.col})")
+            println("____")
+        }
+
 
         this.errorStack = recoveryPoint.errorStack
         this.handlers = recoveryPoint.handlers

@@ -9,4 +9,6 @@ private [machine] class RecoveryState(
     val currentError: DefuncError,
     val pc: Int,val offset: Int, val line: Int, val col: Int) {
 
+
+        override def toString(): String = s"Recovery(($line, $col), pc=$pc)"
 }

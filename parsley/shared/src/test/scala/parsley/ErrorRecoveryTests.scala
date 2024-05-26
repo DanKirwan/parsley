@@ -60,7 +60,7 @@ class ErrorRecoveryTests extends ParsleyTest {
         }
     }
 
-    it should "create a multifailure if fail after previous recoveries" in {
+    "multiple recovery" should "create a multifailure if fail after previous recoveries" in {
         val rec = recoverWith('a', 'b')
 
 
@@ -85,7 +85,7 @@ class ErrorRecoveryTests extends ParsleyTest {
     }
 
 
-    it should "apply labels only if not recovered" in {
+    "error recovery" should "apply labels only if not recovered" in {
         val rec = recoverWith('a', 'b').label("test")
         (rec.parse("a")) shouldBe a [Success[_]]
 
@@ -145,8 +145,6 @@ class ErrorRecoveryTests extends ParsleyTest {
     }
 
     it should "not attempt recovery in non fatal scenarios" in {
-
-
         val rec = recoverWith('a', 'c') | 'c'
         // Confirming this isn't a recovered error
         rec.parse("c") shouldBe Success('c') 
@@ -155,7 +153,6 @@ class ErrorRecoveryTests extends ParsleyTest {
         // Example used to ensure no jump table optimizations
         val rec2 = recoverWith('a', digit *> pure("test"))  | digit
         rec2.parse("0") shouldBe Success('0')
-
 
     }
 
@@ -170,13 +167,61 @@ class ErrorRecoveryTests extends ParsleyTest {
     }
 
     it should "recover at the deepest point first" in {
-        inside((recoverWith('a', 'c') | 'b').parse("c")) {
-            case Recovered(result, TestError((1,1), VanillaError(unex, exs, rs, 1)) :: Nil) => 
-                result shouldBe 'c'
-                unex should contain (Raw("c"))
-                exs should contain only Raw("a")
+
+        val failFirst = atomic('a' *> recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('E')));
+        val failSecond = atomic('a' *> 'b' *> recoverWith('c', 'x' *> pure('L')));
+
+
+        inside(failFirst.parse("abx")) {
+            case Recovered(result, TestError((1,2), _) :: Nil) => result shouldBe 'E'
+        }
+
+        
+        inside(failSecond.parse("abx")) {
+            case Recovered(result, TestError((1,3), _) :: Nil) => result shouldBe 'L'
+        }
+
+
+        inside((failSecond | failFirst).parse("abx")) {
+            case Recovered(result, TestError((1,3), _) :: Nil) => result shouldBe 'L'
+        }
+
+        inside((failFirst| failSecond).parse("abx")) {
+            case Recovered(result, TestError((1,3), _) :: Nil) => result shouldBe 'L'
+        }
+
+    }
+
+
+    it should "be invisible if reocvery also fails" in {
+        inside((amend("zzz" *> dislodge(recoverWith(entrench('a'), 'b')))).parse("zzzx")) {
+            case Failure(TestError((1, 1), VanillaError(unex, exs, rs, 1))) =>
+                unex should contain (Raw("z"))
+                exs should contain only (Raw("a"))
+        }
+
+        inside((amend("zzz" *> recoverWith(entrench('a'), 'b'))).parse("zzzx")) {
+            case Failure(TestError((1, 4), VanillaError(unex, exs, rs, 1))) =>
+                unex should contain (Raw("x"))
+                exs should contain only (Raw("a"))
+        }
+
+        inside((amend("zzz" *> recoverWith('a', 'b'))).parse("zzzx")) {
+            case Failure(TestError((1, 1), VanillaError(unex, exs, rs, 1))) =>
+                unex should contain (Raw("z"))
+                exs should contain only (Raw("a"))
         }
     }
     
+
+    "recovered errors" should "not be affected by combinators outside the recover scope" in {
+        inside((amend("zzz" *> recoverWith('a', 'b'))).parse("zzzb")) {
+            case Recovered(result, TestError((1,4), VanillaError(unex, exs, rs, 1)) :: Nil) => 
+                result shouldBe 'b'
+                unex should contain (Raw("b"))
+                exs should contain only Raw("a")
+
+        }
+    }
     
 }
