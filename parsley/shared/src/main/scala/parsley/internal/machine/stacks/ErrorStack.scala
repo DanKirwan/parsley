@@ -27,7 +27,7 @@ private [machine] object ErrorStateStack extends Stack[ErrorStateStack] {
     implicit val inst: Stack[ErrorStateStack] = this
     type ElemTy =   (ErrorState[DefuncError], List[DefuncError])
     // $COVERAGE-OFF$
-    override protected def show(x: ElemTy): String = s"(${x._1}, [${x._2.mkString}]"
+    override protected def show(x: ElemTy): String = s"(${x._1}, [${x._2.mkString}])"
     override protected def head(xs: ErrorStateStack): ElemTy = xs.errorState
     override protected def tail(xs: ErrorStateStack): ErrorStateStack = xs.tail
     // $COVERAGE-ON$

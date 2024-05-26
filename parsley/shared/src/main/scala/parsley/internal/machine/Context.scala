@@ -84,7 +84,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] var recoveredErrors: List[DefuncError] = List.empty
 
-    private [machine] var checkOffset = 0
+    // This only gets populated once we've started trying other options than the best failure
+    private [machine] var bestFailureSnapshot: Option[List[DefuncError]] = None
 
 
     private [machine] var recoveryPoints: List[RecoveryState] = List.empty
@@ -101,10 +102,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         // Normal Errors
         assert(!errorState.isLive, "Cannot push errors if we're in an error state")
         errorStack = new ErrorStateStack((this.errorState, this.recoveredErrors), this.errorStack)
-        this.errorState = NoError;
-        
 
-        // Recovered errors
+        this.errorState = NoError;
         this.recoveredErrors = List.empty
         
     }
@@ -148,14 +147,10 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     // Error Recovery
 
-    private [machine] def beginRecovery() = {
+    private [machine] def setupRecovery() = {
         assume(this.errorState.isLive, "Cannot move error to recovery if not live")
         if(this.recoveryDepth == 0) {
-            val err = this.errorState match {
-                case LiveError(value) => value
-                case _ => ???
-            }
-            this.parkedError = Some(err)
+            this.parkedError = Some(this.errorState.get)
         }
 
         this.recoveryDepth += 1
@@ -166,8 +161,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] def succeedRecovery() = {
         assume(this.parkedError.isDefined, "Cannot commit a recovered error if no recovered errors in flight");
         assume(this.recoveryDepth > 0, "need at least one recovery scope")
-        this.recoveryDepth -= 1
-        
+        this.recoveryDepth -= 1        
         // we only want errors if at base recovery combinator 
         //otherwise we are accumulating errors in a recovery state
         if(this.recoveryDepth == 0) {
@@ -202,17 +196,15 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] def pushRecoveryPoint(): Unit = {
 
         assume(this.errorState.isLive, "Cannot push recovery point if not live error")
-        val err = this.errorState match {
-            case LiveError(value) => value
-            case _ => ???
-        }
 
         val recoveryPoint:RecoveryState = new RecoveryState(
             this.errorStack, this.handlers, this.stack.clone(), 
             this.calls, this.states, 
-            err,
+            this.errorState.get, this.recoveredErrors,
+            this.parkedError, this.recoveryDepth,
             this.pc, this.offset, this.line, this.col)
 
+        // This puts deeper offsets first and also later pushed points first (>=)
         this.recoveryPoints = insertOrdered[RecoveryState](recoveryPoint, this.recoveryPoints)(_.offset >= _.offset)
     }
 
@@ -227,6 +219,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             println("____")
         }
 
+        this.errorState = LiveError(recoveryPoint.currentError)
+        this.recoveredErrors = recoveryPoint.recoveredErrors
+
 
         this.errorStack = recoveryPoint.errorStack
         this.handlers = recoveryPoint.handlers
@@ -238,10 +233,15 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         this.line= recoveryPoint.line
         this.offset = recoveryPoint.offset
         this.pc = recoveryPoint.pc
+
+        this.parkedError = recoveryPoint.parkedError
+        this.recoveryDepth = recoveryPoint.recoveryDepth
+
         this.forceRecovery = true
-        this.errorState = LiveError(recoveryPoint.currentError)
     
-        this.recoveryPoints = this.recoveryPoints.tail
+        // Remove this option from recovery points, push and reset recovery accumulator
+        this.recoveryStack = new RecoveryStack(this.recoveryPoints.tail, this.recoveryStack)
+        this.recoveryPoints = List.empty
     }
 
     // End: Error Recovery
@@ -287,6 +287,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                 println(this.errorState)
 
                 println(this.errorStack.mkString(", "))
+                println(s"[${this.recoveredErrors.mkString(", ")}]")
                 println("____")
             }
             instrs(pc)(this)
@@ -311,24 +312,23 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             
             assert(this.errorState.isLive, "Error must be live")
            
-            // applyChoiceAccumulator()
 
-            // while(!errorStack.isEmpty) {
-            //     this.popAndMergeErrors()
-            // }
-            // if(!errorStack.isEmpty) this.popAndMergeErrors()
             assert(errorStack.isEmpty, "Error stack must be fully merged")
-            val error = errorState match {
-                case LiveError(value) => value
-                case _ => ???
+            val error = this.errorState.get
+            // If we've failed and we have a best failure snapshot 
+            // it means we've tried other paths so need to go back to those errors
+            val relevantErrors = bestFailureSnapshot match {
+                case Some(value) => value
+                case None => error :: recoveredErrors
             }
 
-            if(recoveredErrors.isEmpty) {
-                Failure(error.asParseError.format(sourceFile))
-            } else {
-                val allErrs = error :: recoveredErrors
-                MultiFailure(allErrs.map(_.asParseError.format(sourceFile)))
+            val parserErrors = relevantErrors.map(_.asParseError.format(sourceFile))
+            
+            val result = parserErrors match {
+                case one :: Nil => Failure(one)
+                case many => MultiFailure(many)
             }
+            result
         }
     }
 
@@ -435,7 +435,21 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             if (diffstack > 0) stack.drop(diffstack)
         } else {
             // try recover if not set running false
-            if(!recoveryPoints.isEmpty) {
+            while(this.recoveryPoints.isEmpty && !this.recoveryStack.isEmpty) {
+
+                // The first time we backtrack we snapshot our best attempt at recovery
+                // on the heuristic of deepest first
+                if(this.bestFailureSnapshot.isEmpty) {
+                    assert(this.errorState.isLive, "Cannot create best failure snapshot without a fatal error")
+                    this.bestFailureSnapshot = Some(this.errorState.get :: this.recoveredErrors)
+                }
+
+
+                this.recoveryPoints = this.recoveryStack.recoveryPoints
+                this.recoveryStack = this.recoveryStack.tail
+            }
+
+            if(!this.recoveryPoints.isEmpty) {
                 this.recoverToFurthestPoint()
             } else {
                 running = false

@@ -7,6 +7,7 @@ private [machine] sealed trait ErrorState[+A] {
     def isLive: Boolean
     def isAccumulator: Boolean
     def isEmpty: Boolean
+    def get: A
   }
   
   case class LiveError[A](value: A) extends ErrorState[A] {
@@ -18,6 +19,8 @@ private [machine] sealed trait ErrorState[+A] {
     def isLive: Boolean = true
     def isAccumulator: Boolean = false
     def isEmpty: Boolean = false
+    
+    def get = value
   }
   
   case class AccumulatorError[A](value: A) extends ErrorState[A] {
@@ -28,6 +31,8 @@ private [machine] sealed trait ErrorState[+A] {
     def isLive: Boolean = false
     def isAccumulator: Boolean = true
     def isEmpty: Boolean = false
+
+    def get = value
   }
   
   case object NoError extends ErrorState[Nothing] {
@@ -38,4 +43,6 @@ private [machine] sealed trait ErrorState[+A] {
     def isLive: Boolean = false
     def isAccumulator: Boolean = false
     def isEmpty: Boolean = true
+
+    def get: Nothing = throw new NoSuchElementException("NoError.get")
   }

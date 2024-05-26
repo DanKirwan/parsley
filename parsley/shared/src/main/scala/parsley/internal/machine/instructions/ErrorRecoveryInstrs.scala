@@ -35,37 +35,40 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
 /**
   * Used when a recoverWith fails and begins recovering
   */
-  private [internal] class BeginRecovery(var label: Int) extends InstrWithLabel {
+  private [internal] class RecoveryPoint(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         
         ensureHandlerInstruction(ctx)
-        if(!ctx.isFatal && !ctx.forceRecovery) {
+
+        if(!ctx.forceRecovery) {
+          
+          assert(ctx.errorState.isLive, "Cannot setup recovery if there is no error")
+          // Move error onto a recovery stack
           ctx.pushRecoveryPoint()
+
+          // We're setting up the recovery point here to be recovered to later
           ctx.handlers = ctx.handlers.tail
           ctx.popAndMergeErrors()
           ctx.fail()
         } else {
-
           
+            ctx.forceRecovery = false
+            ctx.setupRecovery()
+            assert(!ctx.errorState.isLive, "Error should have been moved to parked recovery before beginning recovery")
             // If we accumulated some data on the stack before failing we need to clear it
             val handler = ctx.handlers
             val stackToDiscard = ctx.stack.usize - handler.stacksz 
             if(stackToDiscard > 0) {
               ctx.stack.drop(stackToDiscard)
             }
-            // Update this handler to point to failure of recovery parser
-            // TODO (Dan) need to figure out how error stacks work here
-            assert(ctx.errorState.isLive, "Cannot begin recovery if there is no error")
-            
-            // Move error onto a recovery stack
-            ctx.beginRecovery()
+
             handler.pc = label
             ctx.good = true
             ctx.inc()
           }
         }
     // $COVERAGE-OFF$
-    override def toString: String = s"BeginRecovery($label)"
+    override def toString: String = s"RecoveryPoint($label)"
     // $COVERAGE-ON$
 }
 

@@ -323,14 +323,44 @@ class ErrorRecoveryTests extends ParsleyTest {
         val failSecond = atomic('b' *> recoverWith('c', 'x' *> pure('2') *> Parsley.empty));
         val failSecondAfterRecover = atomic('b' *> recoverWith('c', 'x' *> pure('2')) *> Parsley.empty);
 
-
-        for (first <- Seq(failFirst, failFirstAfterRecover))  {
-            for(second <- Seq(failSecond, failSecondAfterRecover)) {
-                inside((first | second).parse("bx")) {
-                    case Failure(TestError((1,2), _)) => 
-                }
-            }
+        // the logic here is that anything with a failSecond should be a single failure
+        // as the error occurs later - it shouldn't try to recover down another path because it's 
+        // known to fail
+        inside((failFirst | failSecondAfterRecover).parse("bx")) {
+            case MultiFailure(TestError((1, 3), _) :: TestError((1,2), _) :: Nil) => 
         }
+
+        inside((failFirstAfterRecover | failSecond).parse("bx")) {
+            case Failure(TestError((1,2), _)) => 
+        }
+
+        inside((failFirstAfterRecover | failSecondAfterRecover).parse("bx")) {
+            case MultiFailure(TestError((1, 3), _) :: TestError((1,2), _) :: Nil) => 
+        }
+        
+        inside((failFirst | failSecond).parse("bx")) {
+            case Failure(TestError((1,2), _)) => 
+        }
+
+        // testing ordering doesn't matter 
+
+        inside((failSecondAfterRecover | failFirst ).parse("bx")) {
+            case MultiFailure(TestError((1, 3), _) :: TestError((1,2), _) :: Nil) => 
+        }
+
+        inside((failSecond | failFirstAfterRecover ).parse("bx")) {
+            case Failure(TestError((1,2), _)) => 
+        }
+
+        inside((failSecondAfterRecover | failFirstAfterRecover ).parse("bx")) {
+            case MultiFailure(TestError((1, 3), _) :: TestError((1,2), _) :: Nil) => 
+        }
+        
+        inside((failSecond | failFirst ).parse("bx")) {
+            case Failure(TestError((1,2), _)) => 
+        }
+        
+
 
     }
 
