@@ -161,17 +161,16 @@ private [backend] object Choice {
         val merge = state.getLabel(instructions.MergeErrorsAndFail)
         p match {
             case Atomic(u) => scopedState(u, producesResults) {
-                // TODO (Dan1) should this ClearLiveError be here or where error to hints is?
                 instrs += instructions.ClearLiveError
                 instrs += new instructions.RestoreAndPushHandler(merge)
                 rest |> {
-                    instrs += instructions.ErrorToHints
+                    instrs += instructions.PopHandler
                 }
             }
             case u => scopedCheck(u, producesResults) {
                 instrs += new instructions.Catch(merge)
                 rest |> {
-                    instrs += instructions.ErrorToHints
+                    instrs += instructions.PopHandler
                 }
             }
         }
@@ -189,7 +188,7 @@ private [backend] object Choice {
         case root::roots_ =>
             instrs += new instructions.Label(ls.head)
             codeGenAlternatives(root, producesResults) >> {
-                instrs += instructions.ErrorToHints
+                instrs += instructions.PopHandler
                 instrs += new instructions.JumpAndPopCheck(end)
                 suspend(codeGenRoots[M, R](roots_, ls.tail, end, producesResults))
             }
@@ -280,7 +279,7 @@ private [backend] object Choice {
             else {
                 tablified.last._1.codeGen(producesResults) |> {
                     instrs += instructions.ClearLiveError
-                    instrs += instructions.ErrorToHints
+                    instrs += instructions.PopHandler
                     instrs += new instructions.Label(end)
                 }
             }

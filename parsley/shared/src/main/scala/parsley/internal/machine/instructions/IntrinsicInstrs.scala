@@ -190,11 +190,6 @@ private [internal] object NegLookFail extends Instr {
         // Recover the previous state; notFollowedBy NEVER consumes input
         ctx.restoreState()
         
-        // Although we have failed negative lookahead there may still be accumulated hint errors
-        // TODO (Dan) figure out why negative lookahead can fail with an error (see TokenExtractorTests:141)
-        // assume(ctx.liveError.isEmpty, "Cannot fail negative lookahead with an error");
-        // ctx.choiceAccumulator = None
-        // TODO (Dan1) I think we need to pop here but look back in the new system - handler might do it for us 
         ctx.errorState = NoError
         ctx.popAndMergeErrors()
 

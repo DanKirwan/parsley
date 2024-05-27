@@ -10,7 +10,6 @@ import parsley.token.errors.Label
 import parsley.internal.deepembedding.singletons._
 import parsley.internal.machine.instructions
 
-// TODO (Dan) this may need it's own error scope i'm not sure yet
 private [deepembedding] final class ErrorLabel[A](val p: StrictParsley[A], private val label: String, private val labels: scala.Seq[String])
     extends ScopedUnary[A, A] {
     override def setup(label: Int): instructions.Instr = new instructions.PushHandlerAndErrors(label) // was AndClearHints

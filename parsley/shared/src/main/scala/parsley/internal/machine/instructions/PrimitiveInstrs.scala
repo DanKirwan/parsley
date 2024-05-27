@@ -38,11 +38,11 @@ private [internal] object RestoreAndFail extends Instr {
     // $COVERAGE-ON$
 }
 
-private [internal] object RestoreHintsAndState extends Instr {
+// this pops handler, clears errors and pops errors
+private [internal] object PopHandlerAndErrorsAndClearErrors extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
         ctx.restoreState()
-        // TODO (Dan) maybe rename this instruction to make it clear its clearning hints - also maybe confirm theres no error here?
         assert(!ctx.errorState.isLive, "Cannot restore old state and errors with live error")
         ctx.errorState = NoError
         ctx.popAndMergeErrors()
@@ -50,7 +50,7 @@ private [internal] object RestoreHintsAndState extends Instr {
         ctx.inc()
     }
     // $COVERAGE-OFF$
-    override def toString: String = "RestoreHintsAndState"
+    override def toString: String = "PopHandlerAndErrorsAndRestoreErrors"
     // $COVERAGE-ON$
 }
 
@@ -79,19 +79,13 @@ private [internal] object PopStateAndErrorsAndFail extends Instr {
     // $COVERAGE-ON$
 }
 
-private [internal] object PopStateRestoreHintsAndFail extends Instr {
+private [internal] object PopErrorsAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.handlers = ctx.handlers.tail
         ctx.states = ctx.states.tail
 
-
-        // This is only used in lookahead where we want to clear the current error and hints
-        // and restore the old state 
-        // TODO (Dan) Rename this to show that it's clearing errors in the current state - and figure out where live errors should be cleared
-        // ctx.errorState = NoError
         ctx.popAndMergeErrors()
-        // ctx.liveError = None
         ctx.fail()
     }
     // $COVERAGE-OFF$

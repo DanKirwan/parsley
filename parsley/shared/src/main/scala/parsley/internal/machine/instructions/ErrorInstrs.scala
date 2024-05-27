@@ -53,9 +53,7 @@ private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) ext
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
 
-        // TODO (Dan) replace with context calls 
         assert(ctx.errorState.isLive, "Cannot relabel if we don't have a live error");
-
         ctx.errorState = ctx.errorState.map(e => e.label(labels, ctx.handlers.check))
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
@@ -105,7 +103,6 @@ private [internal] object HideExit extends ScopeExit(true, false) {
 
     override def cleanup(ctx: Context): Unit = {
         assert(!ctx.errorState.isLive, "Cannot hide accumulator errors if we have an existing error")
-        // TODO (Dan) confirm we want to set error state here and set list empty?
         ctx.errorState = NoError
         ctx.recoveredErrors = List.empty
     }
@@ -114,35 +111,9 @@ private [internal] object HideExit extends ScopeExit(true, false) {
     // $COVERAGE-ON$
 }
 
-
-private [internal] object ErrorToHints extends Instr {
-    override def apply(ctx: Context): Unit = {
-        ensureRegularInstruction(ctx)
-        // TODO (Dan) why does this remove a handler?
-        ctx.handlers = ctx.handlers.tail
-
-        // ctx.addErrorToHintsAndPop()
-        
-        
-        // if(ctx.liveError.isDefined) {
-        //     // TODO (Dan) this if shouldn't be here - figure out how to change instruction set semantics
-        //     assert(ctx.liveError.isDefined, "Cannot send error to hints if no error has been thrown")
-        //     ctx.errorToAccumulator();
-            
-        // }
-        ctx.inc()
-
-    }
-
-    // $COVERAGE-OFF$
-    override def toString: String = "ErrorToHints"
-    // $COVERAGE-ON$
-}
-
 private [internal] object MergeErrorsAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        // TODO (Dan) why does this remove a handler?
         ctx.handlers = ctx.handlers.tail   
         ctx.fail()
     }
@@ -222,7 +193,6 @@ private [internal] object EntrenchAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.handlers = ctx.handlers.tail
-        // TODO (Dan) do we need to do anything with accumulator errors
         assert(ctx.errorState.isLive, "Cannot entrench l if we don't have a live error");
 
         ctx.errorState = ctx.errorState.map(e => e.entrench)
@@ -252,7 +222,6 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.handlers = ctx.handlers.tail
-        // TODO (Dan) do we need to do anything with accumulator errors
         assert(ctx.errorState.isLive, "Cannot dislodge if we don't have a live error");
         ctx.errorState = ctx.errorState.map(e => e.dislodge(n))
         ctx.popAndMergeErrors()

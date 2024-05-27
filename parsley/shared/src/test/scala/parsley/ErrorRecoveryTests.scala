@@ -375,7 +375,27 @@ class ErrorRecoveryTests extends ParsleyTest {
     }
 
 
-    it should "case with updateDuring?" in {
+    it should "treat state as though it ran only the final parse path" in {
+        
+        val r1 = Ref.make[Int]
+        
+        val p = r1.set(5) *> (recoverWith(r1.update(_+1) *> Parsley.empty, r1.update(_+1)) | r1.update(_+1)) *> r1.get
+
+        p.parse("") should be (Success(7))
+
+
+        val pFail = r1.set(5) *> (recoverWith(r1.update(_+1) *> Parsley.empty, r1.update(_+1)) | r1.update(_+1) *> Parsley.empty) *> r1.get
+
+        inside(pFail.parse("")) { case Recovered(7, _) => }
+
+
+    }
+
+    it should "keep state from within recovery parser" in {
+        val r2 = Ref.make[String]
+        val pFailString = r2.set("init") *> (recoverWith(r2.set(pure("f1")) *> Parsley.empty, r2.set(pure("recovery"))) | r2.set(pure("f2")) *> Parsley.empty) *> r2.get
+
+        inside(pFailString.parse("")) { case Recovered("recovery", _) => }
 
     }
 

@@ -197,9 +197,12 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
         assume(this.errorState.isLive, "Cannot push recovery point if not live error")
 
+        // TODO (Dan) this won't work properly with callee saves etc
+        val oldRegs = java.util.Arrays.copyOf(this.regs, this.regs.length)
+
         val recoveryPoint:RecoveryState = new RecoveryState(
             this.errorStack, this.handlers, this.stack.clone(), 
-            this.calls, this.states, 
+            this.calls, this.states, oldRegs,
             this.errorState.get, this.recoveredErrors,
             this.parkedError, this.recoveryDepth,
             this.pc, this.offset, this.line, this.col)
@@ -228,6 +231,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         this.stack = recoveryPoint.data
         this.states = recoveryPoint.states
         this.calls = recoveryPoint.callStack
+        // TODO this doesn't work - I'm not even sure how to make the regs
+        this.regs = recoveryPoint.regs
 
         this.col = recoveryPoint.col
         this.line= recoveryPoint.line

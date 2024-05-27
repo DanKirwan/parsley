@@ -296,7 +296,6 @@ private [internal] final class RestoreAndPushHandler(var label: Int) extends Ins
         ctx.restoreState()
         ctx.good = true
         val handler = ctx.handlers
-        // TODO (Dan) figure out when this instruction is used and if we need to pop here
         assume(handler.stacksz == ctx.stack.usize && handler.check == ctx.offset,
             // && handler.hints == ctx.hints && handler.hintOffset == ctx.currentHintsValidOffset,
                "the handler can be re-used")
