@@ -374,11 +374,20 @@ class ErrorRecoveryTests extends ParsleyTest {
 
 
         inside((k *> k).parse("xbxb")) {case Recovered('b', TestError((1,4), _) ::  TestError((1,2), _):: Nil) =>}
-
-
         
     }
 
+
+    
+    it should "function with state even when leaving the child scope and returning" in {
+
+        val i = recoverWith('a', 'b') *> 1.makeRef(_ => pure('b'))
+        val j = 'x'.flatMap(_ => i) *> 'x'.flatMap(_ => i)
+
+
+        inside(j.parse("xbxb")) {case Recovered('b', TestError((1,4), _) ::  TestError((1,2), _):: Nil) =>}
+        
+    }
     // it should "handle recursive case" in {
     //     var x: Parsley[Unit] = pure(())
     //     var death: Parsley[Unit] = 'x'.flatMap(_ => x)
@@ -422,82 +431,72 @@ class ErrorRecoveryTests extends ParsleyTest {
 
     }
 
-    they should "be modifiable" in {
-        val p = 5.makeRef(r1 => r1.update(_+1) *> r1.get)
-        p.parse("") should be (Success(6))
+    they should "be modifiable in both parts of recovery" in {
+        val p = "a".makeRef(r1 => recoverWith(
+            r1.update(_ ++ "b") *> Parsley.empty  *> r1.get, 
+            r1.update(_ ++ "c") *> r1.get))
+
+        inside(p.parse("")) { case Recovered("abc", TestError((1,1), _) :: Nil) => } 
     }
-    they should "provide localised context" in {
-        val r1 = Ref.make[Int]
-        val p = r1.set(5) *> (r1.updateDuring(_+1)(r1.get) zip r1.get)
-        val q = r1.set(5) *> (r1.setDuring(6)(r1.get) <~> r1.get)
-        p.parse("") should be (Success((6, 5)))
-        q.parse("") should be (Success((6, 5)))
-    }
-    they should "be correctly allocated when found inside recursion" in {
-        val r1 = Ref.make[Int]
-        lazy val rec: Parsley[Unit] = 'a' *> r1.set(1) *> rec <|> unit
-        val p = "hello :)".makeRef(r2 => rec *> r2.get)
-        p.parse("a") shouldBe Success("hello :)")
-    }
-    they should "be correctly allocated when found inside sub-routines" in {
-        val r1 = Ref.make[Int]
-        val q = 'a' *> r1.set(1)
-        val p = "hello :)".makeRef(r2 => q *> q *> r2.get)
-        p.parse("aa") shouldBe Success("hello :)")
-    }
+
+
+
+
     they should "be preserved by callee-save in flatMap" in {
         val p = "hello world".makeRef(r2 => {
             6.makeRef(r1 => {
-                unit.flatMap(_ => 4.makeRef(_ => r2.set("hi"))) *>
+                unit.flatMap(_ => recoverWith(4.makeRef(_ => r2.set("hi")) *> Parsley.empty, 'b' *> r2.update(_++"!"))) *>
                 (r1.get <~> r2.get)
             })
         })
-        p.parse("") shouldBe Success((6, "hi"))
-    }
-    they should "be preserved by callee-save in flatMap even when it fails" in {
-        val p = "hello world".makeRef(r2 => {
-            6.makeRef(r1 => {
-                combinator.optional(unit.flatMap(_ => r2.set("hi") *> 4.makeRef(_ => Parsley.empty))) *>
-                (r1.get zip r2.get)
-            })
-        })
-        p.parse("") shouldBe Success((6, "hi"))
-    }
-    they should "be able to be rolled back if they fail softly" in {
-        val p = 3.makeRef(r1 => (r1.rollback(r1.set(2) *> Parsley.empty) <|> unit) *> r1.get)
-        p.parse("") shouldBe Success(3)
-    }
-    they should "but not roll back if they hard fail" in {
-        val p = 3.makeRef(r1 => (atomic(r1.rollback('a' *> r1.set(2) *> Parsley.empty)) <|> unit) *> r1.get)
-        p.parse("a") shouldBe Success(2)
-    }
-    they should "not rollback if successful" in {
-        val p = 3.makeRef(r1 => r1.rollback(r1.set(2)) *> r1.get)
-        p.parse("") shouldBe Success(2)
-    }
-    they should "support more than 4 registers" in {
-        def loop(n: Int): Parsley[List[Char]] = {
-            if (n == 0) pure(Nil)
-            else item.fillRef { c => c.get <::> loop(n-1) }
-        }
-        val p = loop(16)
-        p.parse("abcdefghijklmnop") shouldBe Success(List('a', 'b', 'c','d', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'))
+        inside(p.parse("b")) {case Recovered((6, "hi!"), _ :: Nil) => }
     }
 
-    // "fillReg" should "appear to create a fresh register every time its invoked" in {
-    //     def inc(reg: Ref[Int]): Parsley[Int] = reg.get <* reg.update(_ + 1)
-    //     val p = 0.makeRef { i =>
-    //         // the register j is static, however, each recursive call should save its value, making it appear dynamic
-    //         lazy val p: Parsley[List[Int]] = 'a' *> inc(i).fillRef(j => (p, j.get).zipped(_ :+ _) <* 'b') <|> pure(Nil)
-    //         p
-    //     }
-    //     p.parse("aaabbb") shouldBe Success(List(2, 1, 0))
-    // }
 
-    it should "also appear to create a fresh register even in the presence of a hard failure" in {
-        lazy val p: Parsley[Char] = item.fillRef(c => item *> (atomic(p) <|> c.get))
+    it should "take the path with least recovery where possible" in {
+        lazy val p: Parsley[Char] = item.fillRef(c => item *> (atomic(recoverWith(p, pure('x'))) <|> c.get))
         p.parse("abc") shouldBe Success('a')
     }
+
+    it should "accumulate state on failed paths without recovery" in {
+
+
+        val r1 = Ref.make[String]
+        val failFirst = atomic(r1.update(_++"f0") *> recoverWith(r1.update(_++"f1") *> 'x' *> 'c' , r1.update(_++"f2") *> 'b' *> 'x' *> pure('1')));
+        val failSecond = atomic(r1.update(_++"s0") *> 'b' *> recoverWith(r1.update(_++"s1") *> 'c', r1.update(_++"s2") *> 'x' *> Parsley.empty));
+        
+        val p = r1.set("_") *> (failFirst | failSecond | 'b' ) *> r1.get
+        
+        p.parse("bc") should be (Success("_f0f1s0s1"))
+        
+    }
+
+    it should "accumulate state on the path of succeeded recovery" in {
+
+        val r1 = Ref.make[String]
+        val recoverFirst = atomic(r1.update(_++"f0") *> recoverWith(r1.update(_++"f1") *> 'x' *> 'c' , r1.update(_++"f2") *> 'b' *> 'x'));
+        val failSecond = atomic(r1.update(_++"s0") *> 'b' *> recoverWith(r1.update(_++"s1") *> 'c', r1.update(_++"s2") *> 'x' *> Parsley.empty));
+
+        val p = r1.set("_") *> (recoverFirst | failSecond  ) *> r1.get
+
+        inside(p.parse("bx")) {case Recovered(x, recoveredErrors) => x shouldBe "_f0f1f2"}
+
+        
+    }
+
+    it should "accumulate state on path with greedily deepest error" in {
+
+        val r1 = Ref.make[String]
+        val recoverFirst = atomic(r1.update(_++"f0") *> recoverWith(r1.update(_++"f1") *> 'x' *> 'c' , r1.update(_++"f2") *> 'b' *> 'x'));
+        val recoverSecond = atomic(r1.update(_++"s0") *> 'b' *> recoverWith(r1.update(_++"s1") *> 'c', r1.update(_++"s2") *> 'x'));
+        
+        val p = r1.set("_") *> (recoverFirst | recoverSecond  ) *> r1.get
+        
+
+        inside(p.parse("bx")) {case Recovered(x, TestError((1, 2), _) :: Nil) => x shouldBe "_f0f1s0s1s2"}
+        
+    }
+    
     
     
 }
