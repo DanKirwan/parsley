@@ -12,6 +12,9 @@ import parsley.internal.errors.ExpectDesc
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
 import parsley.internal.machine.errors.NoError
+import scala.collection.mutable
+
+import parsley.internal.machine.RecoveryState
 
 private [internal] final class Satisfies(f: Char => Boolean, expected: Iterable[ExpectDesc]) extends Instr {
     def this(f: Char => Boolean, expected: LabelConfig) = this(f, expected.asExpectDescs)
@@ -173,15 +176,56 @@ private [internal] object Span extends Instr {
 }
 
 // This instruction holds mutate state, but it is safe to do so, because it's always the first instruction of a DynCall.
-private [parsley] final class CalleeSave(var label: Int, localRegs: Set[Ref[_]], reqSize: Int, slots: List[(Int, Int)], saveArray: Array[AnyRef])
+private [parsley] final class CalleeSave(var label: Int, localRegs: Set[Ref[_]], reqSize: Int, slots: List[(Int, Int)])
     extends InstrWithLabel {
-    private def this(label: Int, localRegs: Set[Ref[_]], reqSize: Int, slots: List[Int]) =
-        this(label, localRegs, reqSize, slots.zipWithIndex, new Array[AnyRef](slots.length))
     // this filters out the slots to ensure we only do callee-save on registers that might exist in the parent
     def this(label: Int, localRefs: Set[Ref[_]], reqSize: Int, slots: List[Int], numRegsInContext: Int) =
-        this(label, localRefs, reqSize, slots.takeWhile(_ < numRegsInContext))
+        this(label, localRefs, reqSize, slots.takeWhile(_ < numRegsInContext).zipWithIndex)
+
+    var saveArray =  new Array[AnyRef](slots.length)
     private var inUse = false
     private var oldRegs: Array[AnyRef] = null
+
+
+
+    private var validRecoveryPoints: List[RecoveryState] = List.empty
+    // old regs and save array
+    private val oldRecoveryPoints: mutable.Map[RecoveryState, (Array[AnyRef], Array[AnyRef])] = mutable.Map.empty
+
+
+    private [machine] def addRecoveryPoint(point: RecoveryState) = {
+        assert(inUse, "CalleeSaves should only be in recovery instruction stack if applied")
+        this.validRecoveryPoints = point :: this.validRecoveryPoints;
+
+    }
+
+    private [machine] def recoverTo(point: RecoveryState) = {
+
+        val alreadyValid = this.validRecoveryPoints.contains(point)
+        if(inUse && !this.validRecoveryPoints.isEmpty) flushValidRecoveryPoints()
+
+        this.inUse = true
+        
+        if(!alreadyValid) {
+            println("recovering callee save")
+            this.oldRecoveryPoints.get(point) match {
+                case None => throw new IllegalStateException("Cannot recover to a point not recorded")
+                case Some((restoreOldRegs, restoreSaveArray)) => {
+                    this.oldRegs = restoreOldRegs
+                    this.saveArray = restoreSaveArray
+                } 
+            }
+        }
+    }
+
+    private def flushValidRecoveryPoints() = {
+
+        val parentRegArray = oldRegs
+        val saveArrayCopy = java.util.Arrays.copyOf(saveArray, saveArray.length)
+
+        this.oldRecoveryPoints.addAll(this.validRecoveryPoints.map(_ -> (parentRegArray, saveArrayCopy)))
+        this.validRecoveryPoints = List.empty
+    }
 
     private def save(ctx: Context): Unit = {
         for ((slot, idx) <- slots) {
@@ -196,6 +240,11 @@ private [parsley] final class CalleeSave(var label: Int, localRegs: Set[Ref[_]],
     }
 
     private def restore(ctx: Context): Unit = {
+        // When we leave this register scope, we need to keep a record of the registers 
+        // as if we recover, this CalleeSave won't be in the right state
+        flushValidRecoveryPoints()
+
+        // Put the values from maintained registers back in the original regs
         if (oldRegs != null) {
             java.lang.System.arraycopy(ctx.regs, 0, oldRegs, 0, oldRegs.size)
             ctx.regs = oldRegs

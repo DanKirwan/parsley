@@ -365,6 +365,29 @@ class ErrorRecoveryTests extends ParsleyTest {
     }
 
 
+
+    "flatmap error recovery" should "function without state even after leaving DynCall" in {
+        val iNoState = recoverWith('a', 'b')
+        val k = 'x'.flatMap(_ => iNoState) | "xx"
+
+        inside(k.parse("xb")) {case Recovered('b', TestError((1,2), _) :: Nil) =>}
+
+
+        inside((k *> k).parse("xbxb")) {case Recovered('b', TestError((1,4), _) ::  TestError((1,2), _):: Nil) =>}
+
+
+        
+    }
+
+    // it should "handle recursive case" in {
+    //     var x: Parsley[Unit] = pure(())
+    //     var death: Parsley[Unit] = 'x'.flatMap(_ => x)
+    //     x = death *> 1.makeRef(_=> pure('a'))
+
+    //     death.parse("xxx")
+    // }
+
+
     "stateful error recovery" should "not effect persistent state in successful parses" in {
         val p = 5.makeRef { r1 =>
             7.makeRef { r2 =>

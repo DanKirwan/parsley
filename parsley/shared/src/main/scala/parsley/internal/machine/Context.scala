@@ -27,13 +27,14 @@ import parsley.internal.machine.errors.LiveError
 import parsley.internal.machine.errors.AccumulatorError
 import parsley.Recovered
 import parsley.MultiFailure
+import parsley.internal.machine.instructions.CalleeSave
 
 private [parsley] final class Context(private [machine] var instrs: Array[Instr],
                                       private [machine] val input: String,
                                       numRegs: Int,
                                       private val sourceFile: Option[String]) {
 
-    private val debug = true
+    private val debug = false
     /** This is the operand stack, where results go to live  */
     private [machine] var stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
@@ -199,17 +200,35 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
         // TODO (Dan) this won't work properly with callee saves etc
         val oldRegs = java.util.Arrays.copyOf(this.regs, this.regs.length)
-
+        
         val recoveryPoint:RecoveryState = new RecoveryState(
             this.errorStack, this.handlers, this.stack.clone(), 
             this.calls, this.states, oldRegs, this.instrs,
             this.errorState.get, this.recoveredErrors,
             this.parkedError, this.recoveryDepth,
             this.pc, this.offset, this.line, this.col)
-
+            
+        traverseCalleSaves(this.calls, _.addRecoveryPoint(recoveryPoint))
+        applyToCalleeSaves(this.instrs, _.addRecoveryPoint(recoveryPoint))
         // This puts deeper offsets first and also later pushed points first (>=)
         this.recoveryPoints = insertOrdered[RecoveryState](recoveryPoint, this.recoveryPoints)(_.offset >= _.offset)
     }
+
+
+    private def applyToCalleeSaves(instrs: Array[Instr], action: CalleeSave => Unit): Unit = {
+        instrs match {
+            case Array(cSave: CalleeSave, _*) => action(cSave)
+            case _ => 
+        }
+    }
+    @tailrec
+    private def traverseCalleSaves(callStack: CallStack, action: CalleeSave => Unit): Unit = {
+
+        if(callStack.isEmpty) return 
+        applyToCalleeSaves(callStack.instrs, action)
+        traverseCalleSaves(callStack.tail, action)
+    }
+
 
     private [machine] def recoverToFurthestPoint(): Unit = {
 
@@ -232,6 +251,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         this.states = recoveryPoint.states
         this.calls = recoveryPoint.callStack
 
+    
+
         this.regs = recoveryPoint.regs
         this.instrs = recoveryPoint.instrs
 
@@ -243,6 +264,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         this.parkedError = recoveryPoint.parkedError
         this.recoveryDepth = recoveryPoint.recoveryDepth
 
+        traverseCalleSaves(this.calls, _.recoverTo(recoveryPoint))
+        applyToCalleeSaves(this.instrs, _.recoverTo(recoveryPoint))
         this.forceRecovery = true
     
         // Remove this option from recovery points, push and reset recovery accumulator

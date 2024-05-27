@@ -4,6 +4,8 @@ import stacks.{ArrayStack, CallStack,  ErrorStateStack, HandlerStack,  StateStac
 import errors.DefuncError
 import instructions.Instr
 
+import parsley.internal.machine.stacks.Stack.StackExt
+
 private [machine] class RecoveryState(
     val errorStack: ErrorStateStack, val handlers: HandlerStack, 
     val data: ArrayStack[Any], val callStack: CallStack, val states: StateStack, 
@@ -13,5 +15,5 @@ private [machine] class RecoveryState(
     val pc: Int,val offset: Int, val line: Int, val col: Int) {
 
 
-        override def toString(): String = s"Recovery(($line, $col), pc=$pc)"
+        override def toString(): String = s"Recovery(($line, $col), pc=$pc, ${callStack.mkString(" -")})"
 }
