@@ -33,7 +33,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                                       numRegs: Int,
                                       private val sourceFile: Option[String]) {
 
-    private val debug = false
+    private val debug = true
     /** This is the operand stack, where results go to live  */
     private [machine] var stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
@@ -202,7 +202,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
         val recoveryPoint:RecoveryState = new RecoveryState(
             this.errorStack, this.handlers, this.stack.clone(), 
-            this.calls, this.states, oldRegs,
+            this.calls, this.states, oldRegs, this.instrs,
             this.errorState.get, this.recoveredErrors,
             this.parkedError, this.recoveryDepth,
             this.pc, this.offset, this.line, this.col)
@@ -231,8 +231,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         this.stack = recoveryPoint.data
         this.states = recoveryPoint.states
         this.calls = recoveryPoint.callStack
-        // TODO this doesn't work - I'm not even sure how to make the regs
+
         this.regs = recoveryPoint.regs
+        this.instrs = recoveryPoint.instrs
 
         this.col = recoveryPoint.col
         this.line= recoveryPoint.line
