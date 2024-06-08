@@ -65,7 +65,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] var errorState: ErrorState[DefuncError] = NoError
 
 
-    private [machine] var errorStack: ErrorStateStack = Stack.empty
+    private [machine] var errorStack: ErrorStateStack = new ErrorStateStack()
 
     // In Recovery
     /**
@@ -102,10 +102,14 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] def pushErrors(): Unit = {
         // Normal Errors
         assert(!errorState.isLive, "Cannot push errors if we're in an error state")
-        errorStack = new ErrorStateStack((this.errorState, this.recoveredErrors), this.errorStack)
+        errorStack.push(this.errorState, this.recoveredErrors)
 
-        this.errorState = NoError;
-        this.recoveredErrors = List.empty
+        if(!this.errorState.isEmpty) {
+            this.errorState = NoError;
+        }
+        // if(!this.recoveredErrors.isEmpty) {
+        //     this.recoveredErrors = List.empty
+        // }
         
     }
 
@@ -119,19 +123,20 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
       */
     private [machine] def popAndMergeErrors(): Unit = {
         // Normal errors
-        val (stackError, stackRecoveredErrors) = this.errorStack.errorState;
+        val (stackError, stackRecoveredErrors) = this.errorStack.pop();
         assert(!stackError.isLive, "Cannot pop errors if we have existing live errors")
 
-        this.errorStack = this.errorStack.tail
-        // If we have some error from the stack, we let the current state decide how to merge it 
+        if(!stackError.isEmpty) {
+
+            // If we have some error from the stack, we let the current state decide how to merge it 
         // and if no current state we just default to the stack state
-        this.errorState = stackError match {
-            case NoError => errorState
-            //todo make sure this is being done right?
-            case someError => someError.flatMap(e => this.errorState.map(_.merge(e))).orElse(someError)
+            this.errorState = stackError match {
+                case NoError => errorState
+                case someError => someError.flatMap(e => this.errorState.map(_.merge(e))).orElse(someError)
+            }
         }
 
-        this.recoveredErrors = this.recoveredErrors ++ stackRecoveredErrors
+        // this.recoveredErrors = this.recoveredErrors ++ stackRecoveredErrors
 
     }
 
@@ -297,7 +302,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     // $COVERAGE-ON$
 
     private [parsley] def run[Err: ErrorBuilder, A](): Result[Err, A] = {
-        if(debug) println(this.pretty)
+        // if(debug) println(this.pretty)
         try go[Err, A]()
         catch {
             // additional diagnostic checks
@@ -315,7 +320,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                 println(instrs(pc))
                 println(this.errorState)
 
-                println(this.errorStack.mkString(", "))
+                // println(this.errorStack.mkString(", "))
                 println(s"[${this.recoveredErrors.mkString(", ")}]")
                 println("____")
             }
@@ -363,19 +368,11 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
 
 
-    private [machine] def makeErrorLive() = {
-        this.errorState = this.errorState match {
-            case NoError => NoError
-            case LiveError(value) => LiveError(value)
-            case AccumulatorError(value) => LiveError(value)
-        }
-    }
-
     private [machine] def makeErrorAccumulator() = {
         this.errorState = this.errorState match {
             case NoError => NoError
             case LiveError(value) => AccumulatorError(value)
-            case AccumulatorError(value) => AccumulatorError(value)
+            case _ => this.errorState
         }
     }
 
