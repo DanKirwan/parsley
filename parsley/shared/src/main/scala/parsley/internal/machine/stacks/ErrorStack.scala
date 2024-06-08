@@ -33,7 +33,6 @@ private [machine] class ErrorStateStack {
       emptyErrorStateCount += 1
     } else {
       if(emptyErrorStateCount > 0) {
-        println(emptyErrorStateCount)
         stack += Left(emptyErrorStateCount)
         emptyErrorStateCount = 0
       }    
@@ -45,7 +44,6 @@ private [machine] class ErrorStateStack {
     size -= 1
 
     if (emptyErrorStateCount > 0) {
-      println("decrementingEmptyState")
       // Decrement the counter if there are empty error states
       emptyErrorStateCount -= 1
       (NoError, List.empty[DefuncError])
