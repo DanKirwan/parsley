@@ -122,9 +122,10 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
     }
 
     private def addErrors(ctx: Context, errorItems: Iterable[ExpectItem]): Unit = {
+        
         // FIXME: the more appropriate way of demanding input may be to pick 1 character, for same rationale with StringTok
         val newErr = new ExpectedError(ctx.offset, ctx.line, ctx.col, errorItems, unexpectedWidth = size);
-        assert(!ctx.errorState.isLive, "Cannot do jump table with existing errors")
+        assert(!ctx.isLiveError, "Cannot do jump table with existing errors")
         ctx.pushAccumulatorError((newErr))
         ctx.pushHandler(merge)
     }

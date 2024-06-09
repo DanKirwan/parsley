@@ -35,6 +35,12 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                                       private val sourceFile: Option[String]) {
 
     private val debug = false
+    private var accCount = 0
+    private [machine] var pushCount = 0
+    private var hintCount = 0
+    private var altCount = 0
+    private var errorCount = 0
+    
     /** This is the operand stack, where results go to live  */
     private [machine] var stack: ArrayStack[Any] = new ArrayStack()
     /** Current offset into the input */
@@ -62,10 +68,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     /** Amount of indentation to apply to debug combinators output */
     private [machine] var debuglvl: Int = 0
 
-    private [machine] var errorState: ErrorState[DefuncError] = NoError
-
-
-    private [machine] var errorStack: ErrorStateStack = new ErrorStateStack()
+    private [machine] var errorState: Option[DefuncError] = None
+    private [machine] var isLiveError: Boolean = false
 
     // In Recovery
     /**
@@ -97,22 +101,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] var forceRecovery: Boolean = false
 
-      
-
-
-    private [machine] def pushErrors(): Unit = {
-        // Normal Errors
-        assert(!errorState.isLive, "Cannot push errors if we're in an error state")
-        errorStack.push(this.errorState, this.recoveredErrors)
-
-        if(!this.errorState.isEmpty) {
-            this.errorState = NoError;
-        }
-        if(!this.recoveredErrors.isEmpty) {
-            this.recoveredErrors = List.empty
-        }
-        
-    }
+    private [machine] var deepestError: Int = 0
 
 
     /**
@@ -126,16 +115,13 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         // Normal errors
         // val (stackError, stackRecoveredErrors) = this.errorStack.pop();
         val stackError = this.handlers.error
-        assert(!stackError.isLive, "Cannot pop errors if we have existing live errors")
+        assert(!isLiveError, "Cannot pop errors if we have existing live errors")
 
         if(!stackError.isEmpty) {
 
             // If we have some error from the stack, we let the current state decide how to merge it 
         // and if no current state we just default to the stack state
-            this.errorState = stackError match {
-                case NoError => errorState
-                case someError => someError.flatMap(e => this.errorState.map(_.merge(e))).orElse(someError)
-            }
+            this.errorState = this.errorState.map(_.merge(stackError.get)).orElse(stackError)
         }
 
         // if(!stackRecoveredErrors.isEmpty) {
@@ -147,25 +133,26 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
 
     private [machine] def addHints(expecteds: Set[ExpectItem], unexpectedWidth: Int) = {
+        hintCount += 1
         assume(expecteds.nonEmpty, "hints must always be non-empty")
         val newError = new ExpectedError(this.offset, this.line, this.col, expecteds, unexpectedWidth)
 
-        assert(!this.errorState.isLive, "Cannot add hints with a live error")
-        this.errorState = this.errorState.map(_.merge(newError)).orElse(AccumulatorError(newError))
+        assert(!isLiveError, "Cannot add hints with a live error")
+        this.errorState = this.errorState.map(_.merge(newError)).orElse(Some(newError))
     }
 
 
     // Error Recovery
 
     private [machine] def setupRecovery() = {
-        assume(this.errorState.isLive, "Cannot move error to recovery if not live")
+        assume(isLiveError, "Cannot move error to recovery if not live")
         if(this.recoveryDepth == 0) {
             this.parkedError = Some(this.errorState.get)
         }
 
         this.recoveryDepth += 1
         // Regardless of whether we keep the error we need to clear it when we begin recovering
-        this.errorState = NoError
+        this.errorState = None
     }
 
     private [machine] def succeedRecovery() = {
@@ -186,10 +173,11 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
       */
 
     private [machine] def failRecovery() = {
-        assert(this.errorState.isLive, "Cannot replace a recovery error unless there is a live error")
+        assert(isLiveError, "Cannot replace a recovery error unless there is a live error")
         this.recoveryDepth -= 1
         if(this.recoveryDepth == 0) {
-            this.errorState = LiveError(this.parkedError.get)
+            this.errorState = this.parkedError
+            this.isLiveError = true
             this.parkedError = None
         }
     }
@@ -205,13 +193,13 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] def pushRecoveryPoint(): Unit = {
 
-        assume(this.errorState.isLive, "Cannot push recovery point if not live error")
+        assume(isLiveError, "Cannot push recovery point if not live error")
 
         // TODO (Dan) this won't work properly with callee saves etc
         val oldRegs = java.util.Arrays.copyOf(this.regs, this.regs.length)
         
         val recoveryPoint:RecoveryState = new RecoveryState(
-            this.errorStack, this.handlers, this.stack.clone(), 
+            this.handlers, this.stack.clone(), 
             this.calls, this.states, oldRegs, this.instrs,
             this.errorState.get, this.recoveredErrors,
             this.parkedError, this.recoveryDepth,
@@ -250,11 +238,11 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             println("____")
         }
 
-        this.errorState = LiveError(recoveryPoint.currentError)
+        this.errorState = Some(recoveryPoint.currentError)
+        // TODO (Dan) set whether its a live error or not here
         this.recoveredErrors = recoveryPoint.recoveredErrors
 
 
-        this.errorStack = recoveryPoint.errorStack
         this.handlers = recoveryPoint.handlers
         this.stack = recoveryPoint.data
         this.states = recoveryPoint.states
@@ -332,6 +320,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             go[Err, A]()
         }
         else if (good) {
+            println(s"altCount: $altCount - acc: $accCount - errorStack: $pushCount - error: $errorCount - hintcount: $hintCount")
             assert(stack.size == 1, s"stack must end a parse with exactly one item, it has ${stack.size}")
             assert(calls.isEmpty, "there must be no more calls to unwind on end of parser")
             assert(handlers.isEmpty, "there must be no more handlers on end of parse")
@@ -347,11 +336,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             }
         }
         else {
-            
-            assert(this.errorState.isLive, "Error must be live")
+            assert(isLiveError, "Error must be live")
            
 
-            assert(errorStack.isEmpty, "Error stack must be fully merged")
             val error = this.errorState.get
             // If we've failed and we have a best failure snapshot 
             // it means we've tried other paths so need to go back to those errors
@@ -373,11 +360,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
 
     private [machine] def makeErrorAccumulator() = {
-        this.errorState = this.errorState match {
-            case NoError => NoError
-            case LiveError(value) => AccumulatorError(value)
-            case _ => this.errorState
-        }
+        altCount += 1
+        assert(this.errorState.isDefined, "Cannot make error accumulator if not defined")
+        this.isLiveError = false
     }
 
 
@@ -415,19 +400,24 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     /* Eagerly apply scope accumulator to the error message when we push a new error */
 
     private [machine] def pushError(err: DefuncError): Unit = {
-        this.errorState = this.errorState match {
-            case NoError => LiveError(err)
-            case AccumulatorError(value) => LiveError(value.merge(err))
-            case LiveError(value) => LiveError(value.merge(err))
-        }
+
+        errorCount += 1
+        if(err.underlyingOffset >= deepestError) {
+            this.errorState = this.errorState.map(_.merge(err)).orElse(Some(err))
+            this.isLiveError = true
+            this.deepestError = err.underlyingOffset
+        }      
     }
 
     private [machine] def pushAccumulatorError(err: DefuncError): Unit = {
-        assert(!this.errorState.isLive, "cannot push hints if we have a live error")
-        this.errorState = this.errorState match {
-            case NoError => AccumulatorError(err)
-            case AccumulatorError(value) => AccumulatorError(value.merge(err))
-            case LiveError(value) => AccumulatorError(value.merge(err))
+        accCount += 1
+        assert(!isLiveError, "cannot push hints if we have a live error")
+
+        
+        if(err.underlyingOffset >= deepestError) {
+
+            this.errorState = this.errorState.map(_.merge(err)).orElse(Some(err))
+            this.deepestError = err.underlyingOffset
         }
     }
 
@@ -470,7 +460,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                 // The first time we backtrack we snapshot our best attempt at recovery
                 // on the heuristic of deepest first
                 if(this.bestFailureSnapshot.isEmpty) {
-                    assert(this.errorState.isLive, "Cannot create best failure snapshot without a fatal error")
+                    assert(isLiveError, "Cannot create best failure snapshot without a fatal error")
                     this.bestFailureSnapshot = Some(this.errorState.get :: this.recoveredErrors)
                 }
 

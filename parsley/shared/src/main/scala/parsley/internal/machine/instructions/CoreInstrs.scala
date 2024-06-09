@@ -10,7 +10,6 @@ import parsley.XAssert._
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
 import parsley.internal.machine.errors.{EmptyError, EmptyHints}
-import parsley.internal.machine.errors.NoError
 
 // Stack Manipulators
 private [internal] final class Push[A](x: A) extends Instr {
@@ -155,8 +154,8 @@ private [internal] final class PushHandlerAndErrors(var label: Int) extends Inst
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
         ctx.pushHandler(label)
-        ctx.errorState = NoError
-        // ctx.pushErrors()
+        ctx.errorState = None
+        ctx.pushCount += 1
         ctx.inc()
     }
     // $COVERAGE-OFF$
@@ -192,7 +191,9 @@ private [internal] final class PushHandlerAndStateAndErrors(var label: Int) exte
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
         ctx.pushHandler(label)
-        ctx.errorState = NoError
+        ctx.errorState = None
+        ctx.pushCount += 1
+        
         // ctx.pushErrors()
         ctx.saveState()
         ctx.inc()

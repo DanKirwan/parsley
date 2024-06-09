@@ -190,7 +190,7 @@ private [internal] object NegLookFail extends Instr {
         // Recover the previous state; notFollowedBy NEVER consumes input
         ctx.restoreState()
         
-        ctx.errorState = NoError
+        ctx.errorState = None
         ctx.popAndMergeErrors()
 
         // A previous success is a failure
@@ -214,7 +214,7 @@ private [internal] object NegLookGood extends Instr {
         ctx.restoreState()
     
         
-        ctx.errorState = NoError
+        ctx.errorState = None
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         // A failure is what we wanted

@@ -46,8 +46,8 @@ private [internal] object PopHandlerAndErrorsAndClearErrors extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
         ctx.restoreState()
-        assert(!ctx.errorState.isLive, "Cannot restore old state and errors with live error")
-        ctx.errorState = NoError
+        assert(!ctx.isLiveError, "Cannot restore old state and errors with live error")
+        ctx.errorState = None
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.inc()

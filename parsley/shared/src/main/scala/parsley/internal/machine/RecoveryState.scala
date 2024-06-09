@@ -7,7 +7,7 @@ import instructions.Instr
 import parsley.internal.machine.stacks.Stack.StackExt
 
 private [machine] class RecoveryState(
-    val errorStack: ErrorStateStack, val handlers: HandlerStack, 
+    val handlers: HandlerStack, 
     val data: ArrayStack[Any], val callStack: CallStack, val states: StateStack, 
     val regs: Array[AnyRef], val instrs: Array[Instr],
     val currentError: DefuncError, val recoveredErrors: List[DefuncError],

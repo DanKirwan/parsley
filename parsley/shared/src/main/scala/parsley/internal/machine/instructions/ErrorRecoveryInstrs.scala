@@ -8,7 +8,6 @@ package parsley.internal.machine.instructions
 
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert.{ensureHandlerInstruction, ensureRegularInstruction}
-import parsley.internal.machine.errors.NoError
 
 
 
@@ -19,7 +18,7 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
 
-        assert(!ctx.errorState.isLive, "Cannot succeed without recovery with live errors");
+        assert(!ctx.isLiveError, "Cannot succeed without recovery with live errors");
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
 
@@ -42,7 +41,7 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
 
         if(!ctx.forceRecovery) {
           
-          assert(ctx.errorState.isLive, "Cannot setup recovery if there is no error")
+          assert(ctx.isLiveError, "Cannot setup recovery if there is no error")
           // Move error onto a recovery stack
           ctx.pushRecoveryPoint()
 
@@ -54,7 +53,7 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
           
             ctx.forceRecovery = false
             ctx.setupRecovery()
-            assert(!ctx.errorState.isLive, "Error should have been moved to parked recovery before beginning recovery")
+            assert(!ctx.isLiveError, "Error should have been moved to parked recovery before beginning recovery")
             // If we accumulated some data on the stack before failing we need to clear it
             val handler = ctx.handlers
             val stackToDiscard = ctx.stack.usize - handler.stacksz 
@@ -81,14 +80,14 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
   
-        assert(!ctx.errorState.isLive, "Cannot finish recovery with live errors");
+        assert(!ctx.isLiveError, "Cannot finish recovery with live errors");
 
 
 
         // Move the error from recovery stack to list of actual errors
         
         ctx.succeedRecovery();
-        ctx.errorState = NoError
+        ctx.errorState = None
         ctx.popAndMergeErrors()
         
         ctx.handlers = ctx.handlers.tail
@@ -109,7 +108,7 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
 
-        assert(ctx.errorState.isLive, "Recovery must have thrown a live error");
+        assert(ctx.isLiveError, "Recovery must have thrown a live error");
 
         // Move the error from recovery stack to list of actual errors
         ctx.failRecovery()
