@@ -10,6 +10,7 @@ import parsley.XAssert._
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
 import parsley.internal.machine.errors.{EmptyError, EmptyHints}
+import parsley.internal.machine.errors.NoError
 
 // Stack Manipulators
 private [internal] final class Push[A](x: A) extends Instr {
@@ -153,7 +154,8 @@ private [internal] final class PushHandler(var label: Int) extends InstrWithLabe
 private [internal] final class PushHandlerAndErrors(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        ctx.pushHandler(label, true)
+        ctx.pushHandler(label)
+        ctx.errorState = NoError
         // ctx.pushErrors()
         ctx.inc()
     }
@@ -189,7 +191,8 @@ private [internal] final class PushHandlerAndState(var label: Int) extends Instr
 private [internal] final class PushHandlerAndStateAndErrors(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        ctx.pushHandler(label, true)
+        ctx.pushHandler(label)
+        ctx.errorState = NoError
         // ctx.pushErrors()
         ctx.saveState()
         ctx.inc()

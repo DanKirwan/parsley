@@ -99,6 +99,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
       
 
+
     private [machine] def pushErrors(): Unit = {
         // Normal Errors
         assert(!errorState.isLive, "Cannot push errors if we're in an error state")
@@ -137,9 +138,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             }
         }
 
-        if(!stackRecoveredErrors.isEmpty) {
-            this.recoveredErrors = this.recoveredErrors ++ stackRecoveredErrors
-        }
+        // if(!stackRecoveredErrors.isEmpty) {
+        //     this.recoveredErrors = this.recoveredErrors ++ stackRecoveredErrors
+        // }
 
     }
 
@@ -524,13 +525,10 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         offset += n
         col += n
     }
-    private [machine] def pushHandler(label: Int, isError: Boolean = false): Unit = {
+    private [machine] def pushHandler(label: Int): Unit = {
         // we don't include error unless necessary to help GC
-        val pushedError = if(isError) this.errorState else NoError
-        handlers = new HandlerStack(calls, instrs, pushedError, label, stack.usize, offset, handlers)
-        if(isError) {
-            this.errorState = NoError
-        }
+        handlers = new HandlerStack(calls, instrs, errorState, label, stack.usize, offset, handlers)
+  
     }
 
     private [machine] def saveState(): Unit = states = new StateStack(offset, line, col, states)
