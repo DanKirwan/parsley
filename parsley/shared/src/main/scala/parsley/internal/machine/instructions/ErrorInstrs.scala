@@ -58,7 +58,7 @@ private [internal] class RelabelExit(labels: Iterable[String]) extends ScopeExit
 
         
 
-        // ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.label(labels, ctx.handlers.check))
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.label(labels, ctx.handlers.check))
     }
     // $COVERAGE-OFF$
     override def toString: String = "RelabelExit"
@@ -87,7 +87,7 @@ private [internal] object HideExit extends ScopeExit(true, false) {
     override def cleanup(ctx: Context): Unit = {
         assert(!ctx.isLiveError, "Cannot hide accumulator errors if we have an existing error")
         ctx.errorState = None
-        // ctx.recoveredErrors = List.empty
+        ctx.recoveredErrors = List.empty
     }
     // $COVERAGE-OFF$
     override def toString: String = "HideExit"
@@ -112,8 +112,6 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
 
         assert(ctx.isLiveError, "Cannot apply reason if we don't have a live error");
         ctx.errorState = ctx.errorState.map(e => e.withReason(reason, ctx.handlers.check))
-        // ctx.popAndMergeErrors()
-        // Why does this remove a handler?
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -127,7 +125,7 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
 private [internal] class ReasonExit(reason: String) extends ScopeExit(true, false) {
 
     override def cleanup(ctx: Context): Unit = {
-        // ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.withReason(reason, ctx.handlers.check))
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.withReason(reason, ctx.handlers.check))
     }
     // $COVERAGE-OFF$
     override def toString: String = s"ReasonExit($reason)"
@@ -165,7 +163,7 @@ private [internal] object AmendAndFail {
 private [internal] class AmendExit(partial: Boolean) extends ScopeExit(true, true) {
 
     override def cleanup(ctx: Context): Unit = {
-        // ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
     }
     
     // $COVERAGE-OFF$
@@ -195,7 +193,7 @@ private [internal] object EntrenchAndFail extends Instr {
 
 private [internal] object EntrenchExit extends ScopeExit(true, false) {
     override def cleanup(ctx: Context): Unit = {
-        // ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.entrench)
+        ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.entrench)
     }
 
     
@@ -222,7 +220,7 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
 
 private [internal] class DislodgeExit(n: Int) extends ScopeExit(true, false) {
     override def cleanup(ctx: Context): Unit = {
-        // ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.dislodge(n))
+        ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.dislodge(n))
     }
 
     
@@ -248,7 +246,7 @@ private [internal] object SetLexicalAndFail extends Instr {
 
 private [internal] object LexicalExit extends ScopeExit(true, false) {
   override def cleanup(ctx: Context): Unit = {
-    // ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.markAsLexical(ctx.handlers.check))
+    ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.markAsLexical(ctx.handlers.check))
   }
 }
 

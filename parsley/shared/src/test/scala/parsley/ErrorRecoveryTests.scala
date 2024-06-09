@@ -292,7 +292,7 @@ class ErrorRecoveryTests extends ParsleyTest {
     }
 
 
-    "failed recovery" should "not not keep error messages from failed previous recovery attempts if an attempt is successful" in {
+    "failed recovery" should "not keep error messages from failed previous recovery attempts if an attempt is successful" in {
         
         val failFirst = atomic(recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('1')));
         val failSecond = atomic('b' *> recoverWith('c', 'x' *> pure('2') *> Parsley.empty));

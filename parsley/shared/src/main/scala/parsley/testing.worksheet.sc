@@ -33,6 +33,13 @@ import parsley.character.spaces
 import parsley.token.Lexer 
 
 
+val failFirst = atomic(recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('1')));
+val failSecond = atomic('b' *> recoverWith('c', 'x' *> pure('2') *> Parsley.empty));
+val failSecondAfterRecover = atomic('b' *> recoverWith('c', 'x' *> pure('2')) *> Parsley.empty);
+
+(failSecond | failFirst).parse("bx")
+
+
 
 (amend('a' *> ('b' | pure('c')) *> unexpected("x")) | 'x').parse("ac")
 

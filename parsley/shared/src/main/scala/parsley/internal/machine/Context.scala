@@ -146,9 +146,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     // Error Recovery
 
     private [machine] def setupRecovery() = {
-        assume(isLiveError, "Cannot move error to recovery if not live")
+        assume(isLiveError && this.errorState.isDefined, "Cannot move error to recovery if not live")
         if(this.recoveryDepth == 0) {
-            this.parkedError = Some(this.errorState.get)
+            this.parkedError = this.errorState
         }
 
         this.recoveryDepth += 1
@@ -194,12 +194,11 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] def pushRecoveryPoint(): Unit = {
 
-        assume(isLiveError, "Cannot push recovery point if not live error")
+        assume(isLiveError && this.errorState.isDefined, "Cannot push recovery point if not live error")
 
-        // TODO (Dan) this won't work properly with callee saves etc
         val oldRegs = java.util.Arrays.copyOf(this.regs, this.regs.length)
         
-        val recoveryPoint:RecoveryState = new RecoveryState(
+        val recoveryPoint: RecoveryState = new RecoveryState(
             this.handlers, this.stack.clone(), 
             this.calls, this.states, oldRegs, this.instrs,
             this.errorState.get, this.recoveredErrors,
@@ -240,7 +239,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         }
 
         this.errorState = Some(recoveryPoint.currentError)
-        // TODO (Dan) set whether its a live error or not here
+        this.isLiveError = true
+
         this.recoveredErrors = recoveryPoint.recoveredErrors
 
 
@@ -269,6 +269,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         // Remove this option from recovery points, push and reset recovery accumulator
         this.recoveryStack = new RecoveryStack(this.recoveryPoints.tail, this.recoveryStack)
         this.recoveryPoints = List.empty
+
+
+        this.deepestError = 0 // We can just reset this as it's an optimization
     }
 
     // End: Error Recovery
@@ -336,7 +339,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             }
         }
         else {
-            assert(isLiveError, "Error must be live")
+            assert(isLiveError && this.errorState.isDefined, "Error must be live")
            
 
             val error = this.errorState.get
@@ -459,7 +462,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                 // The first time we backtrack we snapshot our best attempt at recovery
                 // on the heuristic of deepest first
                 if(this.bestFailureSnapshot.isEmpty) {
-                    assert(isLiveError, "Cannot create best failure snapshot without a fatal error")
+                    assert(isLiveError && this.errorState.isDefined, "Cannot create best failure snapshot without a fatal error")
                     this.bestFailureSnapshot = Some(this.errorState.get :: this.recoveredErrors)
                 }
 
