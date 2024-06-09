@@ -8,10 +8,12 @@ package parsley.internal.machine.stacks
 
 import parsley.internal.machine.errors.DefuncError
 import parsley.internal.machine.instructions.Instr
+import parsley.internal.machine.errors.ErrorState
 
 private [machine] final class HandlerStack(
     val calls: CallStack,
     val instrs: Array[Instr],
+    val error: ErrorState[DefuncError],
     var pc: Int,
     val stacksz: Int,
     var check: Int,

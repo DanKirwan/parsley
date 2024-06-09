@@ -9,6 +9,7 @@ import parsley.internal.machine.errors.DefuncError
 import parsley.internal.machine.errors.ErrorState
 import parsley.internal.machine.errors.NoError
 import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.ArrayBuffer
 
 private [machine] final class ErrorStack(var error: DefuncError, val tail: ErrorStack)
 private [machine] object ErrorStack extends Stack[ErrorStack] {
@@ -23,7 +24,7 @@ private [machine] object ErrorStack extends Stack[ErrorStack] {
 
 
 private [machine] class ErrorStateStack {
-  private val stack: ListBuffer[Either[Int, (ErrorState[DefuncError], List[DefuncError])]] = ListBuffer()
+  private val stack: ArrayBuffer[Either[Int, (ErrorState[DefuncError], List[DefuncError])]] = ArrayBuffer()
   private var emptyErrorStateCount: Int = 0
   private var size: Int = 0
 

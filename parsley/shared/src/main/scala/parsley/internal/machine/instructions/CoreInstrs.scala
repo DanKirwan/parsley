@@ -153,8 +153,8 @@ private [internal] final class PushHandler(var label: Int) extends InstrWithLabe
 private [internal] final class PushHandlerAndErrors(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        ctx.pushHandler(label)
-        ctx.pushErrors()
+        ctx.pushHandler(label, true)
+        // ctx.pushErrors()
         ctx.inc()
     }
     // $COVERAGE-OFF$
@@ -189,8 +189,8 @@ private [internal] final class PushHandlerAndState(var label: Int) extends Instr
 private [internal] final class PushHandlerAndStateAndErrors(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        ctx.pushHandler(label)
-        ctx.pushErrors()
+        ctx.pushHandler(label, true)
+        // ctx.pushErrors()
         ctx.saveState()
         ctx.inc()
     }
@@ -204,8 +204,8 @@ private [internal] object PopHandlerAndStateAndErrors extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
         ctx.states = ctx.states.tail
-        ctx.handlers = ctx.handlers.tail
         ctx.popAndMergeErrors()
+        ctx.handlers = ctx.handlers.tail
         ctx.inc()
     }
     // $COVERAGE-OFF$

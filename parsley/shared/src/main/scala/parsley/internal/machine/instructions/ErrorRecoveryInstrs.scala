@@ -20,8 +20,8 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
         ensureRegularInstruction(ctx)
 
         assert(!ctx.errorState.isLive, "Cannot succeed without recovery with live errors");
-        ctx.handlers = ctx.handlers.tail
         ctx.popAndMergeErrors()
+        ctx.handlers = ctx.handlers.tail
 
         ctx.pc = label
         
@@ -47,8 +47,8 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
           ctx.pushRecoveryPoint()
 
           // We're setting up the recovery point here to be recovered to later
-          ctx.handlers = ctx.handlers.tail
           ctx.popAndMergeErrors()
+          ctx.handlers = ctx.handlers.tail
           ctx.fail()
         } else {
           
@@ -86,12 +86,12 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
 
 
         // Move the error from recovery stack to list of actual errors
-        ctx.handlers = ctx.handlers.tail
-
+        
         ctx.succeedRecovery();
         ctx.errorState = NoError
         ctx.popAndMergeErrors()
         
+        ctx.handlers = ctx.handlers.tail
         ctx.pc = label
     }
     // $COVERAGE-OFF$
@@ -113,8 +113,8 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
 
         // Move the error from recovery stack to list of actual errors
         ctx.failRecovery()
-        ctx.handlers = ctx.handlers.tail
         ctx.popAndMergeErrors()
+        ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
     // $COVERAGE-OFF$

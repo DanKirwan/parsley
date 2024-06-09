@@ -22,9 +22,9 @@ private [internal] abstract class ScopeExit(val isErrorScope: Boolean, val isSta
         ensureRegularInstruction(ctx)
         cleanup(ctx)
         
+        if(isErrorScope) ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         if(isStateScope) ctx.states = ctx.states.tail
-        if(isErrorScope) ctx.popAndMergeErrors()
 
         ctx.inc()
     }
@@ -157,11 +157,11 @@ private [internal] class ReasonExit(reason: String) extends ScopeExit(true, fals
 private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
+        ctx.errorState = ctx.errorState.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         assert(ctx.errorState.isLive, "Cannot amend if we don't have a live error");
 
-        ctx.errorState = ctx.errorState.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
-        ctx.popAndMergeErrors()
         ctx.states = ctx.states.tail
         ctx.fail()
     }
@@ -192,12 +192,12 @@ private [internal] class AmendExit(partial: Boolean) extends ScopeExit(true, tru
 private [internal] object EntrenchAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
+        ctx.errorState = ctx.errorState.map(e => e.entrench)
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         assert(ctx.errorState.isLive, "Cannot entrench l if we don't have a live error");
 
-        ctx.errorState = ctx.errorState.map(e => e.entrench)
 
-        ctx.popAndMergeErrors()
         ctx.fail()
     }
 
@@ -221,10 +221,10 @@ private [internal] object EntrenchExit extends ScopeExit(true, false) {
 private [internal] class DislodgeAndFail(n: Int) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.handlers = ctx.handlers.tail
         assert(ctx.errorState.isLive, "Cannot dislodge if we don't have a live error");
         ctx.errorState = ctx.errorState.map(e => e.dislodge(n))
         ctx.popAndMergeErrors()
+        ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
 

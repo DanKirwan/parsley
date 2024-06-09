@@ -107,9 +107,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         if(!this.errorState.isEmpty) {
             this.errorState = NoError;
         }
-        // if(!this.recoveredErrors.isEmpty) {
-        //     this.recoveredErrors = List.empty
-        // }
+        if(!this.recoveredErrors.isEmpty) {
+            this.recoveredErrors = List.empty
+        }
         
     }
 
@@ -123,7 +123,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
       */
     private [machine] def popAndMergeErrors(): Unit = {
         // Normal errors
-        val (stackError, stackRecoveredErrors) = this.errorStack.pop();
+        // val (stackError, stackRecoveredErrors) = this.errorStack.pop();
+        val stackError = this.handlers.error
         assert(!stackError.isLive, "Cannot pop errors if we have existing live errors")
 
         if(!stackError.isEmpty) {
@@ -136,7 +137,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             }
         }
 
-        // this.recoveredErrors = this.recoveredErrors ++ stackRecoveredErrors
+        if(!stackRecoveredErrors.isEmpty) {
+            this.recoveredErrors = this.recoveredErrors ++ stackRecoveredErrors
+        }
 
     }
 
@@ -521,9 +524,15 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         offset += n
         col += n
     }
-    private [machine] def pushHandler(label: Int): Unit = {
-        handlers = new HandlerStack(calls, instrs, label, stack.usize, offset, handlers)
+    private [machine] def pushHandler(label: Int, isError: Boolean = false): Unit = {
+        // we don't include error unless necessary to help GC
+        val pushedError = if(isError) this.errorState else NoError
+        handlers = new HandlerStack(calls, instrs, pushedError, label, stack.usize, offset, handlers)
+        if(isError) {
+            this.errorState = NoError
+        }
     }
+
     private [machine] def saveState(): Unit = states = new StateStack(offset, line, col, states)
     private [machine] def restoreState(): Unit = {
         val state = states

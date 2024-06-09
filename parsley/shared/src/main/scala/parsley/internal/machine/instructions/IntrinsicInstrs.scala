@@ -213,10 +213,10 @@ private [internal] object NegLookGood extends Instr {
         // Recover the previous state; notFollowedBy NEVER consumes input
         ctx.restoreState()
     
-        ctx.handlers = ctx.handlers.tail
-
+        
         ctx.errorState = NoError
         ctx.popAndMergeErrors()
+        ctx.handlers = ctx.handlers.tail
         // A failure is what we wanted
         ctx.good = true
         ctx.inc()
@@ -274,9 +274,9 @@ private [instructions] abstract class FilterLike extends Instr {
     }
 
     final def carryOn(ctx: Context): Unit = {
+        ctx.popAndMergeErrors()
         ctx.states = ctx.states.tail
         ctx.handlers = ctx.handlers.tail
-        ctx.popAndMergeErrors()
         ctx.pc = good
     }
 

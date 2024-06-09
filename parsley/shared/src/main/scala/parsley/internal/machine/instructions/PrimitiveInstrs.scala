@@ -72,9 +72,9 @@ private [internal] object PopStateAndFail extends Instr {
 private [internal] object PopStateAndErrorsAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.states = ctx.states.tail
-        ctx.popAndMergeErrors()
         ctx.fail()
     }
     // $COVERAGE-OFF$
@@ -85,10 +85,10 @@ private [internal] object PopStateAndErrorsAndFail extends Instr {
 private [internal] object PopErrorsAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.states = ctx.states.tail
 
-        ctx.popAndMergeErrors()
         ctx.fail()
     }
     // $COVERAGE-OFF$
@@ -207,7 +207,6 @@ private [parsley] final class CalleeSave(var label: Int, localRegs: Set[Ref[_]],
         this.inUse = true
         
         if(!alreadyValid) {
-            println("recovering callee save")
             this.oldRecoveryPoints.get(point) match {
                 case None => throw new IllegalStateException("Cannot recover to a point not recorded")
                 case Some((restoreOldRegs, restoreSaveArray)) => {
