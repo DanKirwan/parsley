@@ -161,7 +161,6 @@ private [backend] object Choice {
         val merge = state.getLabel(instructions.MergeErrorsAndFail)
         p match {
             case Atomic(u) => scopedState(u, producesResults) {
-                instrs += instructions.ClearLiveError
                 instrs += new instructions.RestoreAndPushHandler(merge)
                 rest |> {
                     instrs += instructions.PopHandler
@@ -278,7 +277,6 @@ private [backend] object Choice {
             }
             else {
                 tablified.last._1.codeGen(producesResults) |> {
-                    instrs += instructions.ClearLiveError
                     instrs += instructions.PopHandler
                     instrs += new instructions.Label(end)
                 }

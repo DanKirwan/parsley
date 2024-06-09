@@ -35,11 +35,13 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                                       private val sourceFile: Option[String]) {
 
     private val debug = false
-    private var accCount = 0
-    private [machine] var pushCount = 0
-    private var hintCount = 0
-    private var altCount = 0
-    private var errorCount = 0
+
+    private [machine] var reasonCount = 0
+    private [machine] var amendCount = 0
+    private [machine] var labelCount = 0
+    private [machine] var entrenchCount = 0
+    private [machine] var dislodgeCount = 0
+
     
     /** This is the operand stack, where results go to live  */
     private [machine] var stack: ArrayStack[Any] = new ArrayStack()
@@ -133,7 +135,6 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
 
     private [machine] def addHints(expecteds: Set[ExpectItem], unexpectedWidth: Int) = {
-        hintCount += 1
         assume(expecteds.nonEmpty, "hints must always be non-empty")
         val newError = new ExpectedError(this.offset, this.line, this.col, expecteds, unexpectedWidth)
 
@@ -306,21 +307,20 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     @tailrec private def go[Err: ErrorBuilder, A](): Result[Err, A] = {
         //println(pretty)
         if (running) { // this is the likeliest branch, so should be executed with fewest comparisons
-            if(debug) {
+            // if(debug) {
 
-                print("Running New Inst: ")
-                println(instrs(pc))
-                println(this.errorState)
+            //     print("Running New Inst: ")
+            //     println(instrs(pc))
+            //     println(this.errorState)
 
-                // println(this.errorStack.mkString(", "))
-                println(s"[${this.recoveredErrors.mkString(", ")}]")
-                println("____")
-            }
+            //     // println(this.errorStack.mkString(", "))
+            //     println(s"[${this.recoveredErrors.mkString(", ")}]")
+            //     println("____")
+            // }
             instrs(pc)(this)
             go[Err, A]()
         }
         else if (good) {
-            println(s"altCount: $altCount - acc: $accCount - errorStack: $pushCount - error: $errorCount - hintcount: $hintCount")
             assert(stack.size == 1, s"stack must end a parse with exactly one item, it has ${stack.size}")
             assert(calls.isEmpty, "there must be no more calls to unwind on end of parser")
             assert(handlers.isEmpty, "there must be no more handlers on end of parse")
@@ -360,7 +360,6 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
 
     private [machine] def makeErrorAccumulator() = {
-        altCount += 1
         assert(this.errorState.isDefined, "Cannot make error accumulator if not defined")
         this.isLiveError = false
     }
@@ -401,20 +400,20 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] def pushError(err: DefuncError): Unit = {
 
-        errorCount += 1
-        if(err.underlyingOffset >= deepestError) {
+        if(this.offset >= deepestError) {
             this.errorState = this.errorState.map(_.merge(err)).orElse(Some(err))
             this.isLiveError = true
             this.deepestError = err.underlyingOffset
         }      
     }
-
-    private [machine] def pushAccumulatorError(err: DefuncError): Unit = {
-        accCount += 1
+    
+    // TODO (Dan) this isn't working properly - need to see if its an amend issue?
+    private [machine] def pushAccumulatorError(err: DefuncError, offset: Int): Unit = {
         assert(!isLiveError, "cannot push hints if we have a live error")
 
         
-        if(err.underlyingOffset >= deepestError) {
+
+        if(offset >= deepestError) {
 
             this.errorState = this.errorState.map(_.merge(err)).orElse(Some(err))
             this.deepestError = err.underlyingOffset
@@ -517,7 +516,14 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     }
     private [machine] def pushHandler(label: Int): Unit = {
         // we don't include error unless necessary to help GC
+        handlers = new HandlerStack(calls, instrs, None, label, stack.usize, offset, handlers)
+  
+    }
+
+    private [machine] def pushHandlerAndErrors(label: Int): Unit = {
+        // we don't include error unless necessary to help GC
         handlers = new HandlerStack(calls, instrs, errorState, label, stack.usize, offset, handlers)
+        errorState = None
   
     }
 

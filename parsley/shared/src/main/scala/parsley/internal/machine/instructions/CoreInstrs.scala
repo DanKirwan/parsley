@@ -153,9 +153,7 @@ private [internal] final class PushHandler(var label: Int) extends InstrWithLabe
 private [internal] final class PushHandlerAndErrors(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        ctx.pushHandler(label)
-        ctx.errorState = None
-        ctx.pushCount += 1
+        ctx.pushHandlerAndErrors(label)
         ctx.inc()
     }
     // $COVERAGE-OFF$
@@ -190,11 +188,7 @@ private [internal] final class PushHandlerAndState(var label: Int) extends Instr
 private [internal] final class PushHandlerAndStateAndErrors(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        ctx.pushHandler(label)
-        ctx.errorState = None
-        ctx.pushCount += 1
-        
-        // ctx.pushErrors()
+        ctx.pushHandlerAndErrors(label)
         ctx.saveState()
         ctx.inc()
     }
@@ -298,6 +292,7 @@ private [internal] final class RestoreAndPushHandler(var label: Int) extends Ins
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.restoreState()
+        ctx.makeErrorAccumulator()
         ctx.good = true
         val handler = ctx.handlers
         assume(handler.stacksz == ctx.stack.usize && handler.check == ctx.offset,

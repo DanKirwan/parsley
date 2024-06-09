@@ -34,6 +34,8 @@ import parsley.token.Lexer
 
 
 
+(amend('a' *> ('b' | pure('c')) *> unexpected("x")) | 'x').parse("ac")
+
 // combinator.sepEndBy("aa", 'b').parse("ab")
 
 val p = ((atomic(char('a') ~> parsley.Parsley.empty) | char('b')).impure | unit) ~> char('c')

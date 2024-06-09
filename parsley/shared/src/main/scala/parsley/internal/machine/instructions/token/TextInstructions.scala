@@ -148,7 +148,7 @@ private [internal] final class EscapeOneOfExactly(radix: Int, ns: List[Int], ine
                     assume(inexactErr.mkError(origOff, origLine, origCol, ctx.offset - origOff, n - remaining).isExpectedEmpty,
                            "filter errors don't have expecteds, so don't effect hints")
                     // If we can't continue - we need to simulate having tried and recovered from this situation
-                    ctx.pushAccumulatorError(inexactErr.mkError(origOff, origLine, origCol, ctx.offset - origOff, n - remaining))
+                    ctx.pushAccumulatorError(inexactErr.mkError(origOff, origLine, origCol, ctx.offset - origOff, n - remaining), origOff)
                     rollback(ctx, origOff, origLine, origCol)
                     acc
             }

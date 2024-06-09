@@ -126,7 +126,7 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
         // FIXME: the more appropriate way of demanding input may be to pick 1 character, for same rationale with StringTok
         val newErr = new ExpectedError(ctx.offset, ctx.line, ctx.col, errorItems, unexpectedWidth = size);
         assert(!ctx.isLiveError, "Cannot do jump table with existing errors")
-        ctx.pushAccumulatorError((newErr))
+        ctx.pushAccumulatorError(newErr, ctx.offset)
         ctx.pushHandler(merge)
     }
 
