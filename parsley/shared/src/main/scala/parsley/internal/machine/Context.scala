@@ -42,6 +42,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] var entrenchCount = 0
     private [machine] var dislodgeCount = 0
 
+
+    private val positionTracker = new PositionTracker(input)
     
     /** This is the operand stack, where results go to live  */
     private [machine] var stack: ArrayStack[Any] = new ArrayStack()
@@ -62,9 +64,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     /** Current offset into program instruction buffer */
     private [machine] var pc: Int = 0
     /** Current line number */
-    private [machine] var line: Int = 1
+    private [machine] def line: Int = positionTracker.getPos(offset)._1
     /** Current column number */
-    private [machine] var col: Int = 1
+    private [machine] def col: Int = positionTracker.getPos(offset)._2
     /** State held by the registers, AnyRef to allow for `null` */
     private [machine] var regs: Array[AnyRef] = new Array[AnyRef](numRegs)
     /** Amount of indentation to apply to debug combinators output */
@@ -136,7 +138,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] def addHints(expecteds: Set[ExpectItem], unexpectedWidth: Int) = {
         assume(expecteds.nonEmpty, "hints must always be non-empty")
-        val newError = new ExpectedError(this.offset, this.line, this.col, expecteds, unexpectedWidth)
+        val newError = new ExpectedError(this.offset, expecteds, unexpectedWidth)
 
         assert(!isLiveError, "Cannot add hints with a live error")
         this.errorState = this.errorState.map(_.merge(newError)).orElse(Some(newError))
@@ -254,8 +256,6 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         this.regs = recoveryPoint.regs
         this.instrs = recoveryPoint.instrs
 
-        this.col = recoveryPoint.col
-        this.line= recoveryPoint.line
         this.offset = recoveryPoint.offset
         this.pc = recoveryPoint.pc
 
@@ -334,7 +334,13 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
                 Success(stack.peek[A])
             } else {
-                val errs = recoveredErrors.map(_.asParseError.format(sourceFile))
+                val errs = recoveredErrors.map(e => {
+                    val parseErr = e.asParseError
+                    val (line, col) = positionTracker.getPos(parseErr.offset)
+                    parseErr.col = col
+                    parseErr.line = line
+                    parseErr.format(sourceFile)
+                })
                 Recovered(stack.peek[A], recoveredErrors = errs)
             }
         }
@@ -350,7 +356,13 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                 case None => error :: recoveredErrors
             }
 
-            val parserErrors = relevantErrors.map(_.asParseError.format(sourceFile))
+            val parserErrors = relevantErrors.map(e => {
+                val parseErr = e.asParseError
+                val (line, col) = positionTracker.getPos(parseErr.offset)
+                parseErr.col = col
+                parseErr.line = line
+                parseErr.format(sourceFile)
+            })
             
             val result = parserErrors match {
                 case one :: Nil => Failure(one)
@@ -424,16 +436,16 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     }
 
     private [machine] def failWithMessage(caretWidth: CaretWidth, msgs: String*): Unit = {
-        this.fail(new ClassicFancyError(offset, line, col, caretWidth, msgs: _*))
+        this.fail(new ClassicFancyError(offset, caretWidth, msgs: _*))
     }
     private [machine] def unexpectedFail(expected: Iterable[ExpectItem], unexpected: UnexpectDesc): Unit = {
-        this.fail(new UnexpectedError(offset, line, col, expected, unexpected))
+        this.fail(new UnexpectedError(offset, expected, unexpected))
     }
     private [machine] def expectedFail(expected: Iterable[ExpectItem], unexpectedWidth: Int): Unit = {
-        this.fail(new ExpectedError(offset, line, col, expected, unexpectedWidth))
+        this.fail(new ExpectedError(offset, expected, unexpectedWidth))
     }
     private [machine] def expectedFailWithReason(expected: Iterable[ExpectItem], reason: String, unexpectedWidth: Int): Unit = {
-        this.fail(new ExpectedErrorWithReason(offset, line, col, expected, reason, unexpectedWidth))
+        this.fail(new ExpectedErrorWithReason(offset, expected, reason, unexpectedWidth))
     }
     private [machine] def expectedFailWithReason(expected: Iterable[ExpectItem], reason: Option[String], unexpectedWidth: Int): Unit = {
         if (reason.isEmpty) this.expectedFail(expected, unexpectedWidth)
@@ -496,27 +508,26 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] def peekChar(lookAhead: Int): Char = input.charAt(offset + lookAhead)
     private [machine] def moreInput: Boolean = offset < inputsz
     private [machine] def moreInput(n: Int): Boolean = offset + (n - 1) < inputsz
-    private [machine] def updatePos(c: Char) = c match {
-        case '\n' => line += 1; col = 1
-        case '\t' => col = ((col + 3) & -4) | 1//((col - 1) | 3) + 2 // scalastyle:ignore magic.number
-        case _    => col += 1
-    }
+
     private [machine] def consumeChar(): Char = {
         val c = peekChar
-        updatePos(c)
         offset += 1
         c
     }
+
+    private [machine] def consumeChar_(): Unit = {
+        offset += 1
+    }
+    
     private [machine] def fastConsumeSupplementaryChar(): Unit = {
         assert(this.peekChar.isHighSurrogate, "must have a high surrogate to consume supplementary")
         // not going to be a tab or newline
         offset += 2
-        col += 1
     }
     private [machine] def fastUncheckedConsumeChars(n: Int): Unit = {
         offset += n
-        col += n
     }
+
     private [machine] def pushHandler(label: Int): Unit = {
         // we don't include error unless necessary to help GC
         handlers = new HandlerStack(calls, instrs, None, label, stack.usize, offset, handlers)
@@ -535,8 +546,6 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         val state = states
         states = states.tail
         offset = state.offset
-        line = state.line
-        col = state.col
     }
     private [machine] def writeReg(reg: Int, x: Any): Unit = {
         regs(reg) = x.asInstanceOf[AnyRef]

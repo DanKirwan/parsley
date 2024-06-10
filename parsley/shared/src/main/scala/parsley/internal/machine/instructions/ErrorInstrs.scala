@@ -70,7 +70,7 @@ private [internal] object HideErrorAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         assert(ctx.isLiveError, "Cannot hide if we don't have a live error");
-        ctx.errorState = Some(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = 0))
+        ctx.errorState = Some(new EmptyError(ctx.offset, unexpectedWidth = 0))
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
@@ -138,7 +138,7 @@ private [internal] class ReasonExit(reason: String) extends ScopeExit(true, fals
 private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.errorState = ctx.errorState.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
+        ctx.errorState = ctx.errorState.map(e => e.amend(partial, ctx.states.offset))
         // Although this isn't strictly true - we could have another error from before at this offset
         // it acts as an optimisation with very little overhead
         ctx.deepestError = ctx.states.offset
@@ -163,7 +163,7 @@ private [internal] object AmendAndFail {
 private [internal] class AmendExit(partial: Boolean) extends ScopeExit(true, true) {
 
     override def cleanup(ctx: Context): Unit = {
-        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.amend(partial, ctx.states.offset, ctx.states.line, ctx.states.col))
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.amend(partial, ctx.states.offset))
     }
     
     // $COVERAGE-OFF$
@@ -278,7 +278,7 @@ private [internal] final class VanillaGen[A](gen: parsley.errors.VanillaGen[A]) 
         val (x, caretWidth) = ctx.stack.pop[(A, Int)]()
         val unex = gen.unexpected(x)
         val reason = gen.reason(x)
-        val err = unex.makeError(ctx.offset, ctx.line, ctx.col, gen.adjustWidth(x, caretWidth))
+        val err = unex.makeError(ctx.offset, gen.adjustWidth(x, caretWidth))
         // Sorry, it's faster :(
         if (reason.isDefined) ctx.fail(err.withReason(reason.get))
         else ctx.fail(err)

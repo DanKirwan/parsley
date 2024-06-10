@@ -103,7 +103,7 @@ object VanillaGen {
       * @since 4.4.0
       */
     sealed abstract class UnexpectedItem {
-        private [parsley] def makeError(offset: Int, line: Int, col: Int, caretWidth: Int): DefuncError
+        private [parsley] def makeError(offset: Int, caretWidth: Int): DefuncError
     }
 
     /** Signifies that the error generated should use whatever input was consumed by the offending parser
@@ -112,8 +112,8 @@ object VanillaGen {
       * @since 4.4.0
       */
     case object RawItem extends UnexpectedItem {
-        private[parsley] def makeError(offset: Int, line: Int, col: Int, caretWidth: Int): DefuncError =
-            new ExpectedError(offset, line, col, None, caretWidth)
+        private[parsley] def makeError(offset: Int,  caretWidth: Int): DefuncError =
+            new ExpectedError(offset, None, caretWidth)
     }
 
     /** Signifies that the error generated should not have an unexpected component at all (as in `filter`).
@@ -121,8 +121,8 @@ object VanillaGen {
       * @since 4.4.0
       */
     case object EmptyItem extends UnexpectedItem {
-        private[parsley] def makeError(offset: Int, line: Int, col: Int, caretWidth: Int): DefuncError =
-            new EmptyError(offset, line, col, caretWidth)
+        private[parsley] def makeError(offset: Int, caretWidth: Int): DefuncError =
+            new EmptyError(offset, caretWidth)
     }
 
     /** Signifies that the error generated should use the given name as the unexpected component.
@@ -130,8 +130,8 @@ object VanillaGen {
       * @since 4.4.0
       */
     final case class NamedItem(name: String) extends UnexpectedItem {
-        private[parsley] def makeError(offset: Int, line: Int, col: Int, caretWidth: Int): DefuncError =
-            new UnexpectedError(offset, line, col, None, new UnexpectDesc(name, new RigidCaret(caretWidth)))
+        private[parsley] def makeError(offset: Int, caretWidth: Int): DefuncError =
+            new UnexpectedError(offset, None, new UnexpectDesc(name, new RigidCaret(caretWidth)))
     }
 }
 

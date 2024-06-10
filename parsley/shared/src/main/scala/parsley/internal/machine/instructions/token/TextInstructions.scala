@@ -47,7 +47,7 @@ private [internal] final class EscapeMapped(escTrie: Trie[Int], caretWidth: Int,
                 ctx.fastUncheckedConsumeChars(off)
                 ctx.pushAndContinue(x)
             case None if couldTryMore => findFirst(ctx, off + 1, escsNew)
-            case None => ctx.fail(new ExpectedError(ctx.offset, ctx.line, ctx.col, expecteds, caretWidth))
+            case None => ctx.fail(new ExpectedError(ctx.offset, expecteds, caretWidth))
         }
     }
 
@@ -92,7 +92,7 @@ private [token] object EscapeSomeNumber {
 private [internal] final class EscapeAtMost(n: Int, radix: Int) extends EscapeSomeNumber(radix) {
     override def apply(ctx: Context): Unit = someNumber(ctx, n) match {
         case EscapeSomeNumber.Good(num) =>
-            assume(new EmptyError(ctx.offset, ctx.line, ctx.col, 0).isExpectedEmpty, "empty errors don't have expecteds, so don't effect hints")
+            assume(new EmptyError(ctx.offset, 0).isExpectedEmpty, "empty errors don't have expecteds, so don't effect hints")
             ctx.pushAndContinue(num)
         case EscapeSomeNumber.NoDigits => ctx.expectedFail(expected, unexpectedWidth = 1)
         case EscapeSomeNumber.NoMoreDigits(_, num) =>
@@ -109,47 +109,41 @@ private [internal] final class EscapeOneOfExactly(radix: Int, ns: List[Int], ine
     private val (m :: ms) = ns: @unchecked
     def apply(ctx: Context): Unit = {
         val origOff = ctx.offset
-        val origLine = ctx.line
-        val origCol = ctx.col
         someNumber(ctx, m) match {
             case EscapeSomeNumber.Good(num) =>
-                assume(new EmptyError(ctx.offset, ctx.line, ctx.col, 0).isExpectedEmpty, "empty errors don't have expecteds, so don't effect hints")
+                assume(new EmptyError(ctx.offset, 0).isExpectedEmpty, "empty errors don't have expecteds, so don't effect hints")
                 ctx.pushAndContinue(go(ctx, m, ms, num))
             case EscapeSomeNumber.NoDigits => ctx.expectedFail(expected, unexpectedWidth = 1)
             case EscapeSomeNumber.NoMoreDigits(remaining, _) =>
                 assume(remaining != 0, "cannot be left with 0 remaining digits and failed")
-                ctx.fail(inexactErr.mkError(origOff, origLine, origCol, ctx.offset - origOff, m - remaining))
+                ctx.fail(inexactErr.mkError(origOff, ctx.offset - origOff, m - remaining))
         }
     }
 
-    private def rollback(ctx: Context, origOff: Int, origLine: Int, origCol: Int) = {
+    private def rollback(ctx: Context, origOff: Int) = {
         // To Cosmin: this can use the save point mechanism you have
         ctx.offset = origOff
-        ctx.line = origLine
-        ctx.col = origCol
     }
 
     @tailrec def go(ctx: Context, m: Int, ns: List[Int], acc: BigInt): BigInt = ns match {
         case Nil => acc
         case n :: ns =>
             val origOff = ctx.offset
-            val origLine = ctx.line
-            val origCol = ctx.col
             someNumber(ctx, n-m) match { // this is the only place where the failure can actually happen: go never fails
                 case EscapeSomeNumber.Good(num) =>
-                    assume(new EmptyError(ctx.offset, ctx.line, ctx.col, 0).isExpectedEmpty, "empty errors don't have expecteds, so don't effect hints")
+                    assume(new EmptyError(ctx.offset, 0).isExpectedEmpty, "empty errors don't have expecteds, so don't effect hints")
                     go(ctx, n, ns, acc * BigInt(radix).pow(n-m) + num)
                 case EscapeSomeNumber.NoDigits =>
                     ctx.addHints(expected.toSet, unexpectedWidth = 1)
-                    rollback(ctx, origOff, origLine, origCol)
+                    rollback(ctx, origOff)
                     acc
                 case EscapeSomeNumber.NoMoreDigits(remaining, _) =>
                     assume(remaining != 0, "cannot be left with 0 remaining digits and failed")
-                    assume(inexactErr.mkError(origOff, origLine, origCol, ctx.offset - origOff, n - remaining).isExpectedEmpty,
+                    assume(inexactErr.mkError(origOff, ctx.offset - origOff, n - remaining).isExpectedEmpty,
                            "filter errors don't have expecteds, so don't effect hints")
                     // If we can't continue - we need to simulate having tried and recovered from this situation
-                    ctx.pushAccumulatorError(inexactErr.mkError(origOff, origLine, origCol, ctx.offset - origOff, n - remaining), origOff)
-                    rollback(ctx, origOff, origLine, origCol)
+                    ctx.pushAccumulatorError(inexactErr.mkError(origOff,  ctx.offset - origOff, n - remaining), origOff)
+                    rollback(ctx, origOff)
                     acc
             }
     }

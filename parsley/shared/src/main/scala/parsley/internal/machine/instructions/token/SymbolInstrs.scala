@@ -53,7 +53,7 @@ private [token] abstract class Specific extends Instr {
                 readSpecific(ctx, j + 2)
             }
             else if (ctx.moreInput && readCharCaseHandledBMP(ctx) == c.toChar) {
-                ctx.consumeChar()
+                ctx.consumeChar_()
                 readSpecific(ctx, j + 1)
             }
             else {

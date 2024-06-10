@@ -16,7 +16,7 @@ val releaseFlags = Seq("-Xdisable-assertions", "-opt:l:method,inline", "-opt-inl
 val noReleaseFlagsScala3 = true // maybe some day this can be turned off...
 
 inThisBuild(List(
-  version := "5.0-errors-in-handler-with-recovery-SNAPSHOT",
+  version := "5.0-errors-in-handler-with-recovery-and-position-tracker-SNAPSHOT",
   tlBaseVersion := "5.0",
   organization := "com.github.j-mie6",
   organizationName := "Parsley Contributors <https://github.com/j-mie6/Parsley/graphs/contributors>",

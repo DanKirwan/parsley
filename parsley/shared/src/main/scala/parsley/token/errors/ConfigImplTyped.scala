@@ -19,7 +19,7 @@ import org.typelevel.scalaccompat.annotation.unused
   */
 sealed trait FilterConfig[A] {
     private [parsley] def filter(p: Parsley[A])(f: A => Boolean): Parsley[A]
-    private [parsley] def mkError(offset: Int, line: Int, col: Int, caretWidth: Int, x: A): DefuncError
+    private [parsley] def mkError(offset: Int, caretWidth: Int, x: A): DefuncError
     // $COVERAGE-OFF$
     private [parsley] def collect[B](p: Parsley[A])(f: PartialFunction[A, B]): Parsley[B] = this.filter(p)(f.isDefinedAt).map(f)
     private [parsley] def injectLeft[B]: FilterConfig[Either[A, B]]
@@ -55,8 +55,8 @@ abstract class SpecializedMessage[A] extends SpecializedFilterConfig[A] { self =
         case x if !f(x) => message(x)
     }
     private [parsley] final override def collect[B](p: Parsley[A])(f: PartialFunction[A, B]) = p.collectMsg(message(_))(f)
-    private [parsley] final override def mkError(offset: Int, line: Int, col: Int, caretWidth: Int, x: A): DefuncError = {
-        new ClassicFancyError(offset, line, col, new RigidCaret(caretWidth), message(x): _*)
+    private [parsley] final override def mkError(offset: Int, caretWidth: Int, x: A): DefuncError = {
+        new ClassicFancyError(offset, new RigidCaret(caretWidth), message(x): _*)
     }
 
     // $COVERAGE-OFF$
@@ -93,8 +93,8 @@ abstract class Unexpected[A] extends VanillaFilterConfig[A] { self =>
     private [parsley] final override def filter(p: Parsley[A])(f: A => Boolean) = p.unexpectedWhen {
         case x if !f(x) => unexpected(x)
     }
-    private [parsley] final override def mkError(offset: Int, line: Int, col: Int, caretWidth: Int, x: A): DefuncError = {
-        new UnexpectedError(offset, line, col, Set.empty, new UnexpectDesc(unexpected(x), new RigidCaret(caretWidth)))
+    private [parsley] final override def mkError(offset: Int, caretWidth: Int, x: A): DefuncError = {
+        new UnexpectedError(offset, Set.empty, new UnexpectDesc(unexpected(x), new RigidCaret(caretWidth)))
     }
 
     // $COVERAGE-OFF$
@@ -131,8 +131,8 @@ abstract class Because[A] extends VanillaFilterConfig[A] { self =>
     private [parsley] final override def filter(p: Parsley[A])(f: A => Boolean) = p.filterOut {
         case x if !f(x) => reason(x)
     }
-    private [parsley] final override def mkError(offset: Int, line: Int, col: Int, caretWidth: Int, x: A): DefuncError = {
-        new EmptyErrorWithReason(offset, line, col, reason(x), caretWidth)
+    private [parsley] final override def mkError(offset: Int, caretWidth: Int, x: A): DefuncError = {
+        new EmptyErrorWithReason(offset, reason(x), caretWidth)
     }
 
     // $COVERAGE-OFF$
@@ -174,8 +174,8 @@ abstract class UnexpectedBecause[A] extends VanillaFilterConfig[A] { self =>
     private [parsley] final override def filter(p: Parsley[A])(f: A => Boolean) = p.unexpectedWithReasonWhen {
         case x if !f(x) => (unexpected(x), reason(x))
     }
-    private [parsley] final override def mkError(offset: Int, line: Int, col: Int, caretWidth: Int, x: A): DefuncError = {
-        new UnexpectedError(offset, line, col, Set.empty, new UnexpectDesc(unexpected(x), new RigidCaret(caretWidth))).withReason(reason(x))
+    private [parsley] final override def mkError(offset: Int, caretWidth: Int, x: A): DefuncError = {
+        new UnexpectedError(offset, Set.empty, new UnexpectDesc(unexpected(x), new RigidCaret(caretWidth))).withReason(reason(x))
     }
 
     // $COVERAGE-OFF$
@@ -213,8 +213,8 @@ abstract class UnexpectedBecause[A] extends VanillaFilterConfig[A] { self =>
 final class BasicFilter[A] extends SpecializedFilterConfig[A] with VanillaFilterConfig[A] {
     private [parsley] final override def filter(p: Parsley[A])(f: A => Boolean) = p.filter(f)
     private [parsley] final override def collect[B](p: Parsley[A])(f: PartialFunction[A, B]) = p.collect(f)
-    private [parsley] final override def mkError(offset: Int, line: Int, col: Int, caretWidth: Int, @unused x: A): DefuncError = {
-        new EmptyError(offset, line, col, caretWidth)
+    private [parsley] final override def mkError(offset: Int, caretWidth: Int, @unused x: A): DefuncError = {
+        new EmptyError(offset, caretWidth)
     }
 
     // $COVERAGE-OFF$

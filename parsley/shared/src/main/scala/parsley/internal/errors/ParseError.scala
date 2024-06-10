@@ -9,8 +9,8 @@ import parsley.errors.ErrorBuilder
 
 private [internal] sealed trait ParseError {
     val offset: Int
-    val col: Int
-    val line: Int
+    var col: Int
+    var line: Int
 
     protected def format(line: String, beforeLines: List[String], afterLines: List[String], caret: Int)
                         (implicit builder: ErrorBuilder[_]): builder.ErrorInfoLines
@@ -23,7 +23,7 @@ private [internal] sealed trait ParseError {
     }
 }
 // The reasons here are lightweight, two errors can merge their messages, but messages do not get converted to hints
-private [internal] case class TrivialError(offset: Int, line: Int, col: Int,
+private [internal] case class TrivialError(offset: Int, var line: Int, var col: Int,
                                            unexpected: Either[Int, UnexpectItem], expecteds: Set[ExpectItem], reasons: Set[String], lexicalError: Boolean)
     extends ParseError {
     def format(line: String, beforeLines: List[String], afterLines: List[String], caret: Int)(implicit builder: ErrorBuilder[_]): builder.ErrorInfoLines = {
@@ -40,7 +40,7 @@ private [internal] case class TrivialError(offset: Int, line: Int, col: Int,
             builder.lineInfo(line, beforeLines, afterLines, this.line, caret, math.min(caretSize, line.length - caret + 1)))
     }
 }
-private [internal] case class FancyError(offset: Int, line: Int, col: Int, msgs: List[String], caretWidth: Int) extends ParseError {
+private [internal] case class FancyError(offset: Int, var line: Int, var col: Int, msgs: List[String], caretWidth: Int) extends ParseError {
     def format(line: String, beforeLines: List[String], afterLines: List[String], caret: Int)(implicit builder: ErrorBuilder[_]): builder.ErrorInfoLines = {
         builder.specializedError(
             builder.combineMessages(msgs.map(builder.message(_))),

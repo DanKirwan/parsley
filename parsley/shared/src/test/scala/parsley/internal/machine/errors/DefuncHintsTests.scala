@@ -12,7 +12,7 @@ import parsley.internal.errors.ExpectDesc
 class DefuncHintsTests extends ParsleyTest {
     def mkErr(labels: String*): DefuncError = {
         assert(labels.nonEmpty)
-        new ExpectedError(0, 0, 0, labels.map(new ExpectDesc(_)), 1)
+        new ExpectedError(0, labels.map(new ExpectDesc(_)), 1)
     }
 
     "EmptyHints" should "have size 0" in {

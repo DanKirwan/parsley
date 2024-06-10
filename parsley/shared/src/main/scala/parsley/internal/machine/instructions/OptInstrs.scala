@@ -45,7 +45,7 @@ private [internal] final class SatisfyExchange[A](f: Char => Boolean, x: A, _exp
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
         if (ctx.moreInput && f(ctx.peekChar)) {
-            ctx.consumeChar()
+            ctx.consumeChar_()
             ctx.pushAndContinue(x)
         }
         else ctx.expectedFail(expected, unexpectedWidth = 1)
@@ -124,7 +124,7 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
     private def addErrors(ctx: Context, errorItems: Iterable[ExpectItem]): Unit = {
         
         // FIXME: the more appropriate way of demanding input may be to pick 1 character, for same rationale with StringTok
-        val newErr = new ExpectedError(ctx.offset, ctx.line, ctx.col, errorItems, unexpectedWidth = size);
+        val newErr = new ExpectedError(ctx.offset, errorItems, unexpectedWidth = size);
         assert(!ctx.isLiveError, "Cannot do jump table with existing errors")
         ctx.pushAccumulatorError(newErr, ctx.offset)
         ctx.pushHandler(merge)

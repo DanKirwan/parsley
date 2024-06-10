@@ -34,7 +34,7 @@ private [instructions] abstract class CommentLexer extends Instr {
     @tailrec private final def consumeSingle(ctx: Context): Boolean = {
         if (ctx.moreInput) {
             if (ctx.peekChar != '\n') {
-                ctx.consumeChar()
+                ctx.consumeChar_()
                 consumeSingle(ctx)
             }
             else true
@@ -53,7 +53,7 @@ private [instructions] abstract class CommentLexer extends Instr {
             wellNested(ctx, unmatched + 1)
         }
         else if (ctx.moreInput) {
-            ctx.consumeChar()
+            ctx.consumeChar_()
             wellNested(ctx, unmatched)
         }
         else false
@@ -179,7 +179,7 @@ private [internal] final class TokenWhiteSpace private (
     }
     override def spaces(ctx: Context): Unit = {
         while (ctx.moreInput && ws(ctx.peekChar)) {
-            val _ = ctx.consumeChar()
+            ctx.consumeChar_()
         }
     }
     // $COVERAGE-OFF$
@@ -206,6 +206,7 @@ private [internal] final class TokenSkipComments private (
     // $COVERAGE-ON$
 }
 
+// TODO (Col and Line stuff?)
 private [internal] final class TokenNonSpecific(name: String, unexpectedIllegal: String => String)
                                                (start: Char => Boolean, letter: Char => Boolean, illegal: String => Boolean) extends Instr {
     private [this] final val expected = Some(new ExpectDesc(name))
@@ -226,7 +227,6 @@ private [internal] final class TokenNonSpecific(name: String, unexpectedIllegal:
             ctx.unexpectedFail(expected = expected, unexpected = new UnexpectDesc(unexpectedIllegal(tok), new RigidCaret(tok.length)))
         }
         else {
-            ctx.col += tok.length
             ctx.pushAndContinue(tok)
         }
     }

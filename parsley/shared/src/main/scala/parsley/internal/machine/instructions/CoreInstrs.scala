@@ -128,7 +128,7 @@ private [internal] object Return extends Instr {
 private [internal] final class Empty(width: Int) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        ctx.fail(new EmptyError(ctx.offset, ctx.line, ctx.col, unexpectedWidth = width))
+        ctx.fail(new EmptyError(ctx.offset, unexpectedWidth = width))
     }
     // $COVERAGE-OFF$
     override def toString: String = "Empty"

@@ -49,7 +49,7 @@ private [internal] class CharTok private (c: Char, errorItem: Iterable[ExpectIte
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
         if (ctx.moreInput && ctx.peekChar == c) {
-            ctx.consumeChar()
+            ctx.consumeChar_()
             ctx.inc()
         }
         else ctx.expectedFail(errorItem, unexpectedWidth = 1)
@@ -84,26 +84,7 @@ private [internal] final class StringTok private (s: String, errorItem: Iterable
     private [this] val sz = s.length
     private [this] val codePointLength = s.codePointCount(0, sz)
 
-    @tailrec private [this] def compute(i: Int, lineAdjust: Int, colAdjust: StringTok.Adjust): (Int => Int, Int => Int) = {
-        if (i < sz) {
-            val (partialLineAdjust, partialColAdjust) = build(lineAdjust, colAdjust)
-            partialLineAdjusters(i) = partialLineAdjust
-            partialColAdjusters(i) = partialColAdjust
-            s.charAt(i) match {
-                case '\n' => compute(i + 1, lineAdjust + 1, new StringTok.Set)
-                case '\t' => compute(i + 1, lineAdjust, colAdjust.tab)
-                case _    => colAdjust.next(); compute(i + 1, lineAdjust, colAdjust)
-            }
-        }
-        else build(lineAdjust, colAdjust)
-    }
-    private [this] def build(lineAdjust: Int, colAdjust: StringTok.Adjust): (Int => Int, Int => Int) = {
-        (if (lineAdjust == 0) line => line else _ + lineAdjust, colAdjust.toAdjuster)
-    }
-    private [this] val partialLineAdjusters = new Array[Int => Int](sz)
-    private [this] val partialColAdjusters = new Array[Int => Int](sz)
-    private [this] val (lineAdjust, colAdjust) = compute(0, 0, new StringTok.Offset)
-
+    // TODO (Col and Line stuff)
     @tailrec private def go(ctx: Context, i: Int, j: Int): Unit = {
         if (j < sz && i < ctx.inputsz && ctx.input.charAt(i) == s.charAt(j)) go(ctx, i + 1, j + 1)
         else if (j < sz) {
@@ -113,12 +94,9 @@ private [internal] final class StringTok private (s: String, errorItem: Iterable
             ctx.offset = i
             // These help maintain a consistent internal state, this makes the debuggers
             // output less confusing in the string case in particular.
-            ctx.col = partialColAdjusters(j)(ctx.col)
-            ctx.line = partialLineAdjusters(j)(ctx.line)
         }
         else {
-            ctx.col = colAdjust(ctx.col)
-            ctx.line = lineAdjust(ctx.line)
+            // TODO Remove
             ctx.offset = i
             ctx.inc()
         }
@@ -146,7 +124,6 @@ private [internal] final class UniSat(f: Int => Boolean, expected: Iterable[Expe
             ctx.pushAndContinue(c)
         }
         else if (ctx.moreInput && f(h)) {
-            ctx.updatePos(hc)
             ctx.offset += 1
             ctx.pushAndContinue(h)
         }
