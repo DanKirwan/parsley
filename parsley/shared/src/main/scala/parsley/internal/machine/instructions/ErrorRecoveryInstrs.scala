@@ -90,7 +90,7 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
         // Move the error from recovery stack to list of actual errors
         
         ctx.succeedRecovery();
-        ctx.errorState = None
+        ctx.clearError()
         ctx.popAndMergeErrors()
         
         ctx.handlers = ctx.handlers.tail

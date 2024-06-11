@@ -37,7 +37,7 @@ private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) ext
         ensureHandlerInstruction(ctx)
 
         assert(ctx.isLiveError, "Cannot relabel if we don't have a live error");
-        ctx.errorState = ctx.errorState.map(e => e.label(labels, ctx.handlers.check))
+        ctx.errorState = ctx.errorState.label(labels, ctx.handlers.check)
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
@@ -53,8 +53,13 @@ private [internal] class RelabelExit(labels: Iterable[String]) extends ScopeExit
     override def cleanup(ctx: Context): Unit = {
         assert(!ctx.isLiveError, "cannot label accumulator if in live state")
         // Here we may have no hints in which case we just ignore relabelling them
-        if(isHide) ctx.errorState = None
-        else if(ctx.offset == ctx.handlers.check) ctx.errorState = ctx.errorState.map(e => e.label(labels, ctx.offset))
+
+        if(!ctx.isEmptyError) {
+            if(isHide) {
+                ctx.clearError()
+            }
+            else if(ctx.offset == ctx.handlers.check) ctx.errorState = ctx.errorState.label(labels, ctx.offset)
+        }
 
         
 
@@ -70,7 +75,7 @@ private [internal] object HideErrorAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         assert(ctx.isLiveError, "Cannot hide if we don't have a live error");
-        ctx.errorState = Some(new EmptyError(ctx.offset, unexpectedWidth = 0))
+        ctx.errorState = new EmptyError(ctx.offset, unexpectedWidth = 0)
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
@@ -86,23 +91,11 @@ private [internal] object HideExit extends ScopeExit(true, false) {
 
     override def cleanup(ctx: Context): Unit = {
         assert(!ctx.isLiveError, "Cannot hide accumulator errors if we have an existing error")
-        ctx.errorState = None
+        ctx.clearError()
         ctx.recoveredErrors = List.empty
     }
     // $COVERAGE-OFF$
     override def toString: String = "HideExit"
-    // $COVERAGE-ON$
-}
-
-private [internal] object MergeErrorsAndFail extends Instr {
-    override def apply(ctx: Context): Unit = {
-        ensureHandlerInstruction(ctx)
-        ctx.handlers = ctx.handlers.tail   
-        ctx.fail()
-    }
-
-    // $COVERAGE-OFF$
-    override def toString: String = "MergeErrorsAndFail"
     // $COVERAGE-ON$
 }
 
@@ -111,7 +104,8 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
         ensureHandlerInstruction(ctx)
 
         assert(ctx.isLiveError, "Cannot apply reason if we don't have a live error");
-        ctx.errorState = ctx.errorState.map(e => e.withReason(reason, ctx.handlers.check))
+        ctx.errorState = ctx.errorState.withReason(reason, ctx.handlers.check)
+        ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
     }
@@ -138,14 +132,13 @@ private [internal] class ReasonExit(reason: String) extends ScopeExit(true, fals
 private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.errorState = ctx.errorState.map(e => e.amend(partial, ctx.states.offset))
+        assert(ctx.isLiveError, "Cannot amend if we don't have a live error");
+        ctx.errorState = ctx.errorState.amend(partial, ctx.states.offset)
         // Although this isn't strictly true - we could have another error from before at this offset
         // it acts as an optimisation with very little overhead
         ctx.deepestError = ctx.states.offset
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
-        assert(ctx.isLiveError, "Cannot amend if we don't have a live error");
-
         ctx.states = ctx.states.tail
         ctx.fail()
     }
@@ -176,7 +169,7 @@ private [internal] class AmendExit(partial: Boolean) extends ScopeExit(true, tru
 private [internal] object EntrenchAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.errorState = ctx.errorState.map(e => e.entrench)
+        ctx.errorState = ctx.errorState.entrench
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         assert(ctx.isLiveError, "Cannot entrench l if we don't have a live error");
@@ -206,7 +199,7 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         assert(ctx.isLiveError, "Cannot dislodge if we don't have a live error");
-        ctx.errorState = ctx.errorState.map(e => e.dislodge(n))
+        ctx.errorState = ctx.errorState.dislodge(n)
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
@@ -233,7 +226,7 @@ private [internal] object SetLexicalAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         assert(ctx.isLiveError, "Cannot set lexical if we don't have a live error");
-        ctx.errorState = ctx.errorState.map(x => x.markAsLexical(ctx.handlers.check))
+        ctx.errorState = ctx.errorState.markAsLexical(ctx.handlers.check)
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()

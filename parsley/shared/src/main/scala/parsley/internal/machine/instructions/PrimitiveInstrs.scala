@@ -47,7 +47,7 @@ private [internal] object PopHandlerAndErrorsAndClearErrors extends Instr {
         ensureRegularInstruction(ctx)
         ctx.restoreState()
         assert(!ctx.isLiveError, "Cannot restore old state and errors with live error")
-        ctx.errorState = None
+        ctx.clearError()
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.inc()

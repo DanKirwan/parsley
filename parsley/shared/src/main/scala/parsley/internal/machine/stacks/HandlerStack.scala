@@ -13,7 +13,8 @@ import parsley.internal.machine.errors.ErrorState
 private [machine] final class HandlerStack(
     val calls: CallStack,
     val instrs: Array[Instr],
-    val error: Option[DefuncError],
+    val error: DefuncError,
+    val isEmptyError: Boolean,
     var pc: Int,
     val stacksz: Int,
     var check: Int,

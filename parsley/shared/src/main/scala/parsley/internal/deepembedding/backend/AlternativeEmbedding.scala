@@ -262,7 +262,7 @@ private [backend] object Choice {
                                                                             mutable.ListBuffer.empty, mutable.ListBuffer.empty, 0, Nil, Nil)
         instrs += new instructions.JumpTable(leads, ls, default, size, expecteds, propagateExpecteds(expectedss, expecteds, Nil))
         codeGenRoots(roots, ls, end, producesResults) >> {
-            instrs += instructions.Catch //This instruction is reachable as default - 1
+            instrs += instructions.Catch 
             instrs += new instructions.Label(default)
             if (needsDefault) {
                 instrs += instructions.Empty.zero
