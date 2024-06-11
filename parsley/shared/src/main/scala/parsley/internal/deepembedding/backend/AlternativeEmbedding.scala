@@ -158,19 +158,14 @@ private [backend] object Choice {
     // Why is rest lazy? because Cont could be Id, and Id forces the argument immediately!
     private def codeGenAlt[A, M[_, +_]: ContOps, R](p: StrictParsley[A], rest: =>M[R, Unit], producesResults: Boolean)
                                                       (implicit instrs: InstrBuffer, state: CodeGenState): M[R, Unit] = {
-        val merge = state.getLabel(instructions.MergeErrorsAndFail)
         p match {
             case Atomic(u) => scopedState(u, producesResults) {
-                instrs += new instructions.RestoreAndPushHandler(merge)
-                rest |> {
-                    instrs += instructions.PopHandler
-                }
+                instrs += instructions.Restore
+                rest 
             }
             case u => scopedCheck(u, producesResults) {
-                instrs += new instructions.Catch(merge)
-                rest |> {
-                    instrs += instructions.PopHandler
-                }
+                instrs += instructions.Catch
+                rest 
             }
         }
 
@@ -187,7 +182,6 @@ private [backend] object Choice {
         case root::roots_ =>
             instrs += new instructions.Label(ls.head)
             codeGenAlternatives(root, producesResults) >> {
-                instrs += instructions.PopHandler
                 instrs += new instructions.JumpAndPopCheck(end)
                 suspend(codeGenRoots[M, R](roots_, ls.tail, end, producesResults))
             }
@@ -261,15 +255,14 @@ private [backend] object Choice {
         val needsDefault = tablified.last._2.nonEmpty
         val end = state.freshLabel()
         val default = state.freshLabel()
-        val merge = state.getLabel(instructions.MergeErrorsAndFail)
         val tablified_ = tablified.collect {
             case (root, Some(info)) => (root, info)
         }
         val (roots, leads, ls, size, expecteds, expectedss) = foldTablified(tablified_, state, mutable.Map.empty, mutable.Map.empty,
                                                                             mutable.ListBuffer.empty, mutable.ListBuffer.empty, 0, Nil, Nil)
-        instrs += new instructions.JumpTable(leads, ls, default, merge, size, expecteds, propagateExpecteds(expectedss, expecteds, Nil))
+        instrs += new instructions.JumpTable(leads, ls, default, size, expecteds, propagateExpecteds(expectedss, expecteds, Nil))
         codeGenRoots(roots, ls, end, producesResults) >> {
-            instrs += new instructions.Catch(merge) //This instruction is reachable as default - 1
+            instrs += instructions.Catch //This instruction is reachable as default - 1
             instrs += new instructions.Label(default)
             if (needsDefault) {
                 instrs += instructions.Empty.zero
@@ -277,7 +270,6 @@ private [backend] object Choice {
             }
             else {
                 tablified.last._1.codeGen(producesResults) |> {
-                    instrs += instructions.PopHandler
                     instrs += new instructions.Label(end)
                 }
             }

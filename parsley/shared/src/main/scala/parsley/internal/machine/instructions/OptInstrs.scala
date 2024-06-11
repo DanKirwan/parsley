@@ -96,12 +96,11 @@ private [internal] final class AlwaysRecoverWith[A](x: A) extends Instr {
 
 private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterable[ExpectItem])],
         private [this] var default: Int,
-        private [this] var merge: Int,
         size: Int,
         allErrorItems: Iterable[ExpectItem]) extends Instr {
-    def this(prefixes: List[Char], labels: List[Int], default: Int, merge: Int,
+    def this(prefixes: List[Char], labels: List[Int], default: Int, 
               size: Int, allErrorItems: Iterable[ExpectItem], errorItemss: List[Iterable[ExpectItem]]) = {
-        this(mutable.LongMap(prefixes.view.map(_.toLong).zip(labels.zip(errorItemss)).toSeq: _*), default, merge, size, allErrorItems)
+        this(mutable.LongMap(prefixes.view.map(_.toLong).zip(labels.zip(errorItemss)).toSeq: _*), default,  size, allErrorItems)
     }
     private [this] var defaultPreamble: Int = _
 
@@ -113,7 +112,7 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
             if (dest != default) {
                 ctx.pushHandler(defaultPreamble)
             }
-            addErrors(ctx, errorItems) // adds a handler
+            addErrors(ctx, errorItems)
         }
         else {
             addErrors(ctx, allErrorItems)
@@ -127,7 +126,6 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
         val newErr = new ExpectedError(ctx.offset, errorItems, unexpectedWidth = size);
         assert(!ctx.isLiveError, "Cannot do jump table with existing errors")
         ctx.pushAccumulatorError(newErr, ctx.offset)
-        ctx.pushHandler(merge)
     }
 
     override def relabel(labels: Array[Int]): this.type = {
@@ -135,11 +133,10 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
             case (_, (i, errs)) => (labels(i), errs)
         }
         default = labels(default)
-        merge = labels(merge)
         defaultPreamble = default - 1
         this
     }
     // $COVERAGE-OFF$
-    override def toString: String = s"JumpTable(${jumpTable.map{case (k, v) => k.toChar -> v._1}.mkString(", ")}, _ -> $default, $merge)"
+    override def toString: String = s"JumpTable(${jumpTable.map{case (k, v) => k.toChar -> v._1}.mkString(", ")}, _ -> $default)"
     // $COVERAGE-ON$
 }

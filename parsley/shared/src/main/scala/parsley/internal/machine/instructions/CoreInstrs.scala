@@ -270,7 +270,7 @@ private [internal] final class JumpAndPopState(var label: Int) extends InstrWith
     // $COVERAGE-ON$
 }
 
-private [internal] final class Catch(var label: Int) extends InstrWithLabel {
+private [internal] object Catch extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         val handler = ctx.handlers
@@ -278,31 +278,27 @@ private [internal] final class Catch(var label: Int) extends InstrWithLabel {
             assume(handler.stacksz == ctx.stack.usize && handler.check == ctx.offset,
                 // && handler.hints == ctx.hints && handler.hintOffset == ctx.currentHintsValidOffset,
                 "the handler can be re-used")
-            handler.pc = label
             ctx.makeErrorAccumulator()
+            ctx.handlers = ctx.handlers.tail
             ctx.inc()
         }
     }
     // $COVERAGE-OFF$
-    override def toString: String = s"Catch($label)"
+    override def toString: String = s"Catch"
     // $COVERAGE-ON$
 }
 
-private [internal] final class RestoreAndPushHandler(var label: Int) extends InstrWithLabel {
+private [internal] object Restore extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         ctx.restoreState()
         ctx.makeErrorAccumulator()
         ctx.good = true
-        val handler = ctx.handlers
-        assume(handler.stacksz == ctx.stack.usize && handler.check == ctx.offset,
-            // && handler.hints == ctx.hints && handler.hintOffset == ctx.currentHintsValidOffset,
-               "the handler can be re-used")
-        handler.pc = label
+        ctx.handlers = ctx.handlers.tail
         ctx.inc()
     }
     // $COVERAGE-OFF$
-    override def toString: String = s"RestoreAndPushHandler($label)"
+    override def toString: String = s"Restore"
     // $COVERAGE-ON$
 }
 
