@@ -12,8 +12,8 @@ private [machine] class RecoveryState(
     val regs: Array[AnyRef], val instrs: Array[Instr],
     val currentError: DefuncError, val recoveredErrors: List[DefuncError],
     val parkedError: Option[DefuncError], val recoveryDepth: Int,
-    val pc: Int,val offset: Int, val line: Int, val col: Int) {
+    val pc: Int,val offset: Int) {
 
 
-        override def toString(): String = s"Recovery(($line, $col), pc=$pc, ${callStack.mkString(" -")})"
+        override def toString(): String = s"Recovery(pc=$pc, ${callStack.mkString(" -")})"
 }

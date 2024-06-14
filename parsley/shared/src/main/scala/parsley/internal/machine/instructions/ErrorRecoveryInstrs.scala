@@ -35,12 +35,12 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int) extends I
 /**
   * Used when a recoverWith fails and begins recovering
   */
-  private [internal] class RecoveryPoint(var label: Int) extends InstrWithLabel {
+  private [internal] class RecoveryPoint(var label: Int, val eager: Boolean) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         
         ensureHandlerInstruction(ctx)
 
-        if(!ctx.forceRecovery) {
+        if(!ctx.forceRecovery && !eager) {
           
           assert(ctx.isLiveError, "Cannot setup recovery if there is no error")
           // Move error onto a recovery stack
@@ -54,9 +54,10 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int) extends I
           // it could be set higher if we have more information on previous deepest errors
           ctx.fail()
         } else {
-          
-            ctx.forceRecovery = false
-            ctx.setupRecovery()
+            if(!eager) {
+              ctx.forceRecovery = false
+              ctx.setupRecovery()
+            }
             assert(!ctx.isLiveError, "Error should have been moved to parked recovery before beginning recovery")
             // If we accumulated some data on the stack before failing we need to clear it
             val handler = ctx.handlers
@@ -108,13 +109,17 @@ private [internal] class SucceedRecoveryAndJump(var label: Int) extends InstrWit
   * We need to resupply the error message from the original parser rather than the recovered one
   *
   */
-  private [internal] class FailRecovery extends Instr {
+  private [internal] class FailRecovery(val eager: Boolean) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
 
         assert(ctx.isLiveError, "Recovery must have thrown a live error");
 
-        ctx.failRecovery()
+        if(eager) {
+          ctx.restoreAfterFailedRecovery()   
+        } else {
+          ctx.failRecovery()
+        }
     }
 
     // $COVERAGE-OFF$

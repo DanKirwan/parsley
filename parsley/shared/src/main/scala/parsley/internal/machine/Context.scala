@@ -189,22 +189,24 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
                 this.good = false
                 this.running = false
             } else {
-                // We could eagerly fail here but it'd override the context's normal failure mechanisms 
-                // so it's easier to let this play out
-                assert(isLiveError, "Cannot replace a recovery error unless there is a live error")
-                this.recoveryDepth -= 1
-                if(this.recoveryDepth == 0) {
-                    this.errorState = this.parkedError.getOrElse(new EmptyError(0,0))
-                    this.isLiveError = true
-                    this.parkedError = None
-                }
-
-                this.popAndMergeErrors()
-                this.handlers = this.handlers.tail
-                this.restoreState()
-                this.fail()
+                restoreAfterFailedRecovery()   
             }
         }
+    }
+
+    private [machine] def restoreAfterFailedRecovery(): Unit = {
+        assert(isLiveError, "Cannot replace a recovery error unless there is a live error")
+        this.recoveryDepth -= 1
+        if(this.recoveryDepth == 0) {
+            this.errorState = this.parkedError.getOrElse(new EmptyError(0,0))
+            this.isLiveError = true
+            this.parkedError = None
+        }
+
+        this.popAndMergeErrors()
+        this.handlers = this.handlers.tail
+        this.restoreState()
+        this.fail()
     }
 
 
@@ -227,7 +229,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             this.calls, this.states, oldRegs, this.instrs,
             this.errorState, this.recoveredErrors,
             this.parkedError, this.recoveryDepth,
-            this.pc, this.offset, this.line, this.col)
+            this.pc, this.offset)
             
         traverseCalleSaves(this.calls, _.addRecoveryPoint(recoveryPoint))
         applyToCalleeSaves(this.instrs, _.addRecoveryPoint(recoveryPoint))
@@ -296,7 +298,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
                 println("Beginning Recovery")
                 println(this.recoveryStack.recoveryPoints.mkString)
-                println(s"At (${recoveryPoint.line}, ${recoveryPoint.col})")
+                println(s"At offset ${recoveryPoint.offset}")
                 println("____")
             }
     

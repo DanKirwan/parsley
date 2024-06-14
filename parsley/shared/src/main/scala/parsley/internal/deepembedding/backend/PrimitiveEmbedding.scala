@@ -57,7 +57,7 @@ private [deepembedding] final class NotFollowedBy[A](val p: StrictParsley[A]) ex
 }
 
 
-private [deepembedding] final class RecoverWith[A, B](val p: StrictParsley[A], val r: StrictParsley[B]) extends StrictParsley[A]{
+private [deepembedding] final class RecoverWith[A, B](val p: StrictParsley[A], val r: StrictParsley[B], eager: Boolean) extends StrictParsley[A]{
 
     override private[deepembedding] def inlinable: Boolean = false
 
@@ -73,12 +73,12 @@ private [deepembedding] final class RecoverWith[A, B](val p: StrictParsley[A], v
         suspend[M, R, Unit](p.codeGen(producesResults)) |> {
             instrs += new instructions.SucceedWithoutRecoveryAndJump(skip)
             instrs += new instructions.Label(handler1)
-            instrs += new instructions.RecoveryPoint(handler2)
+            instrs += new instructions.RecoveryPoint(handler2, eager)
             suspend[M, R, Unit](r.codeGen(producesResults)) |> {
                 instrs += new instructions.SucceedRecoveryAndJump(skip)
             }
             instrs += new instructions.Label(handler2)
-            instrs += new instructions.FailRecovery
+            instrs += new instructions.FailRecovery(eager)
             instrs += new instructions.Label(skip)
             // if (producesResults) instrs += instructions.Push.Unit
         }
