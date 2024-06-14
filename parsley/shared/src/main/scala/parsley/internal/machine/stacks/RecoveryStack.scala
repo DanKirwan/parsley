@@ -1,7 +1,11 @@
 package parsley.internal.machine.stacks
 import parsley.internal.machine.RecoveryState
 
-private [machine] final class RecoveryStack(var recoveryPoints: List[RecoveryState], val tail: RecoveryStack)
+private [machine] final class RecoveryStack(
+    var recoveryPoints: List[RecoveryState], 
+    var recoveryAttempted: Boolean, 
+    val recoveryOffset: Int,
+    val tail: RecoveryStack)
 private [machine] object RecoveryStack extends Stack[RecoveryStack] {
     implicit val inst: Stack[RecoveryStack] = this
     type ElemTy = List[RecoveryState]

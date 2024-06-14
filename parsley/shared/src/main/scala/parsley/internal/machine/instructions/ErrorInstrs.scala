@@ -134,9 +134,6 @@ private [internal] class AmendAndFail private (partial: Boolean) extends Instr {
         ensureHandlerInstruction(ctx)
         assert(ctx.isLiveError, "Cannot amend if we don't have a live error");
         ctx.errorState = ctx.errorState.amend(partial, ctx.states.offset)
-        // Although this isn't strictly true - we could have another error from before at this offset
-        // it acts as an optimisation with very little overhead
-        ctx.deepestError = ctx.states.offset
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.states = ctx.states.tail

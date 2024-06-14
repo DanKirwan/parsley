@@ -14,12 +14,13 @@ import parsley.internal.machine.XAssert.{ensureHandlerInstruction, ensureRegular
 /**
   * This instruction is used when a recoverWith is used by the initial parser succeeds without issue
   */
-private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val producesResults: Boolean) extends InstrWithLabel {
+private [internal] class SucceedWithoutRecoveryAndJump(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
 
         assert(!ctx.isLiveError, "Cannot succeed without recovery with live errors");
         ctx.popAndMergeErrors()
+        ctx.states = ctx.states.tail
         ctx.handlers = ctx.handlers.tail
 
         ctx.pc = label
@@ -48,9 +49,9 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
           // We're setting up the recovery point here to be recovered to later
           ctx.popAndMergeErrors()
           ctx.handlers = ctx.handlers.tail
+          ctx.states = ctx.states.tail
           // TODO This can be reset to 0 as it's used only as an optimization but 
           // it could be set higher if we have more information on previous deepest errors
-          ctx.deepestError = 0
           ctx.fail()
         } else {
           
@@ -79,7 +80,7 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int, val produ
   * We have successfully finished parsing the recovery parser
   *
   */
-private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResults: Boolean) extends InstrWithLabel {
+private [internal] class SucceedRecoveryAndJump(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
   
@@ -92,7 +93,7 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
         ctx.succeedRecovery();
         ctx.clearError()
         ctx.popAndMergeErrors()
-        
+        ctx.states = ctx.states.tail        
         ctx.handlers = ctx.handlers.tail
         ctx.pc = label
     }
@@ -113,12 +114,9 @@ private [internal] class SucceedRecoveryAndJump(var label: Int, val producesResu
 
         assert(ctx.isLiveError, "Recovery must have thrown a live error");
 
-        // Move the error from recovery stack to list of actual errors
         ctx.failRecovery()
-        ctx.popAndMergeErrors()
-        ctx.handlers = ctx.handlers.tail
-        ctx.fail()
     }
+
     // $COVERAGE-OFF$
     override def toString: String = s"FailRecovery"
     // $COVERAGE-ON$

@@ -15,6 +15,7 @@ private [machine] final class HandlerStack(
     val instrs: Array[Instr],
     val error: DefuncError,
     val isEmptyError: Boolean,
+    val recoveredErrors: List[DefuncError],
     var pc: Int,
     val stacksz: Int,
     var check: Int,

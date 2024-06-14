@@ -33,11 +33,24 @@ import parsley.character.spaces
 import parsley.token.Lexer 
 
 
-val failFirst = atomic(recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('1')));
+(recoverWith('a', 'b') *> 'b' *> parsley.Parsley.empty).parse("by")
+
+
+
+
+
+val failFirst = atomic(recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('1') *> Parsley.empty));
+val failFirstAfterRecover = atomic(recoverWith('z' *> 'c' , 'b' *> 'x' *> pure('1')) *> Parsley.empty);
 val failSecond = atomic('b' *> recoverWith('c', 'x' *> pure('2') *> Parsley.empty));
 val failSecondAfterRecover = atomic('b' *> recoverWith('c', 'x' *> pure('2')) *> Parsley.empty);
 
+
 (failSecond | failFirst).parse("bx")
+
+(failFirstAfterRecover | failSecondAfterRecover).parse("bx")
+
+
+
 
 
 

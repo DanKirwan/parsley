@@ -63,16 +63,17 @@ class ErrorRecoveryTests extends ParsleyTest {
                 unex should contain (Raw("x")) 
         }
     }
+    
 
     "multiple recovery" should "create a multifailure if fail after previous recoveries" in {
         val rec = recoverWith('a', 'b')
-
 
         inside((rec *> parsley.Parsley.empty).parse("b")) {
             case MultiFailure(TestError((1, 2), e1) :: TestError((1,1), VanillaError(unex, exs, _, 1)) :: Nil) => 
                 unex should contain (Raw("b"))
                 exs should contain only (Raw("a"))
         }
+  
         inside( ( recoverWith('a', 'b') <* recoverWith('x', 'y')).parse("bb") ) {
             case MultiFailure(
                 TestError((1,2), VanillaError(unex1, exs1, rs1, 1)) :: 
@@ -323,15 +324,14 @@ class ErrorRecoveryTests extends ParsleyTest {
         val failSecond = atomic('b' *> recoverWith('c', 'x' *> pure('2') *> Parsley.empty));
         val failSecondAfterRecover = atomic('b' *> recoverWith('c', 'x' *> pure('2')) *> Parsley.empty);
 
-        // the logic here is that anything with a failSecond should be a single failure
-        // as the error occurs later - it shouldn't try to recover down another path because it's 
-        // known to fail
+        // Any case with the internal failure should use the other one path as recovery fails, 
+        // otherwise if both recover use the deeper one
         inside((failFirst | failSecondAfterRecover).parse("bx")) {
             case MultiFailure(TestError((1, 3), _) :: TestError((1,2), _) :: Nil) => 
         }
 
         inside((failFirstAfterRecover | failSecond).parse("bx")) {
-            case Failure(TestError((1,2), _)) => 
+            case MultiFailure(TestError((1, 3), _) :: TestError((1,1), _) :: Nil) => 
         }
 
         inside((failFirstAfterRecover | failSecondAfterRecover).parse("bx")) {
@@ -343,23 +343,22 @@ class ErrorRecoveryTests extends ParsleyTest {
         }
 
         // testing ordering doesn't matter 
-
-        inside((failSecondAfterRecover | failFirst ).parse("bx")) {
+        inside((failSecondAfterRecover | failFirst).parse("bx")) {
             case MultiFailure(TestError((1, 3), _) :: TestError((1,2), _) :: Nil) => 
         }
 
-        inside((failSecond | failFirstAfterRecover ).parse("bx")) {
-            case Failure(TestError((1,2), _)) => 
+        inside((failSecond | failFirstAfterRecover).parse("bx")) {
+            case MultiFailure(TestError((1, 3), _) :: TestError((1,1), _) :: Nil) => 
         }
 
-        inside((failSecondAfterRecover | failFirstAfterRecover ).parse("bx")) {
+        inside((failSecondAfterRecover | failFirstAfterRecover).parse("bx")) {
             case MultiFailure(TestError((1, 3), _) :: TestError((1,2), _) :: Nil) => 
         }
         
-        inside((failSecond | failFirst ).parse("bx")) {
+        inside((failSecond | failFirst).parse("bx")) {
             case Failure(TestError((1,2), _)) => 
         }
-        
+  
 
 
     }
