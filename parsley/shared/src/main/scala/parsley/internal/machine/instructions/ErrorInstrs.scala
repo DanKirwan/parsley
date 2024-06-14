@@ -9,9 +9,6 @@ import parsley.internal.errors.{CaretWidth, RigidCaret, UnexpectDesc}
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
 import parsley.internal.machine.errors.EmptyError
-import parsley.internal.machine.stacks.ErrorStack
-import parsley.internal.machine.stacks.Stack.StackExt
-import parsley.internal.machine.errors.NoError
 
 
 
@@ -116,9 +113,16 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
 }
 
 
-private [internal] class ReasonExit(reason: String) extends ScopeExit(true, false) {
+/**
+  * Called on exit from an explain scope 
+  *
+  * @param reason The explanation that should be attached to internal error messages
+  * @param propagate Describes whether the reason is applied to accumulated errors
+  */
+private [internal] class ReasonExit(reason: String, propagate: Boolean) extends ScopeExit(true, false) {
 
     override def cleanup(ctx: Context): Unit = {
+        if(propagate && !ctx.isEmptyError) ctx.errorState = ctx.errorState.withReason(reason, ctx.handlers.check)
         ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.withReason(reason, ctx.handlers.check))
     }
     // $COVERAGE-OFF$
@@ -153,6 +157,7 @@ private [internal] object AmendAndFail {
 private [internal] class AmendExit(partial: Boolean) extends ScopeExit(true, true) {
 
     override def cleanup(ctx: Context): Unit = {
+        if(!ctx.isEmptyError) ctx.errorState = ctx.errorState.amend(partial, ctx.states.offset)
         ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.amend(partial, ctx.states.offset))
     }
     
@@ -183,6 +188,7 @@ private [internal] object EntrenchAndFail extends Instr {
 
 private [internal] object EntrenchExit extends ScopeExit(true, false) {
     override def cleanup(ctx: Context): Unit = {
+        if(!ctx.isEmptyError) ctx.errorState = ctx.errorState.entrench
         ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.entrench)
     }
 
@@ -210,6 +216,7 @@ private [internal] class DislodgeAndFail(n: Int) extends Instr {
 
 private [internal] class DislodgeExit(n: Int) extends ScopeExit(true, false) {
     override def cleanup(ctx: Context): Unit = {
+        if(!ctx.isEmptyError) ctx.errorState = ctx.errorState.dislodge(n)
         ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.dislodge(n))
     }
 

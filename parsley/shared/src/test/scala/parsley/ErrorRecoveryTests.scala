@@ -496,6 +496,15 @@ class ErrorRecoveryTests extends ParsleyTest {
         
     }
     
-    
-    
+    "eager recovery" should "always recover even with passing alternatives" in {
+        inside((recoverWith('a', 'b', true) <|> "bc").parse("bc")) {
+            case Recovered('b', _) => 
+        }
+    }
+
+    it should "still revert on recovery failure" in {
+        inside((recoverWith('a', 'b' *> Parsley.empty, true) <|> "bc").parse("bc")) {
+            case Success("bc") => 
+        }
+    }
 }

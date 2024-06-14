@@ -43,7 +43,7 @@ private [deepembedding] final class ErrorHide[A](val p: StrictParsley[A]) extend
 }
 private [deepembedding] final class ErrorExplain[A](val p: StrictParsley[A], reason: String) extends ScopedUnary[A, A] {
     override def setup(label: Int): instructions.Instr = new instructions.PushHandler(label)
-    override def instr: instructions.Instr = new instructions.ReasonExit(reason)
+    override def instr: instructions.Instr = new instructions.ReasonExit(reason, false)
     override def instrNeedsLabel: Boolean = false
     override def handlerLabel(state: CodeGenState): Int  = state.getLabelForApplyReason(reason)
     // $COVERAGE-OFF$

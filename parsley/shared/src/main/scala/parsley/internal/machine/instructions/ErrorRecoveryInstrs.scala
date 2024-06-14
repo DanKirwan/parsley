@@ -54,10 +54,8 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int) extends I
           // it could be set higher if we have more information on previous deepest errors
           ctx.fail()
         } else {
-            if(!eager) {
-              ctx.forceRecovery = false
-              ctx.setupRecovery()
-            }
+            ctx.forceRecovery = false
+            ctx.setupRecovery()
             assert(!ctx.isLiveError, "Error should have been moved to parked recovery before beginning recovery")
             // If we accumulated some data on the stack before failing we need to clear it
             val handler = ctx.handlers
