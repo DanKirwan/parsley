@@ -150,6 +150,20 @@ private [internal] final class PushHandler(var label: Int) extends InstrWithLabe
 }
 
 
+private [internal] final class PushHandlerAndCheck(var label: Int) extends InstrWithLabel {
+    override def apply(ctx: Context): Unit = {
+        ensureRegularInstruction(ctx)
+        ctx.pushHandler(label)
+        ctx.check = ctx.offset
+        ctx.inc()
+    }
+    // $COVERAGE-OFF$
+    override def toString: String = s"PushHandlerAndCheck($label)"
+    // $COVERAGE-ON$
+}
+
+
+
 private [internal] final class PushHandlerAndErrors(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)

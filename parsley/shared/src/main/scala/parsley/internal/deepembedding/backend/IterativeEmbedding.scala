@@ -25,7 +25,7 @@ private [deepembedding] final class Many[A, C](val p: StrictParsley[A], factory:
         val body = state.freshLabel()
         val handler = state.freshLabel()
         if (producesResults) instrs += new instructions.Fresh(factory.newBuilder)
-        instrs += new instructions.PushHandler(handler)
+        instrs += new instructions.PushHandlerAndCheck(handler)
         instrs += new instructions.Label(body)
         suspend(p.codeGen[M, R](producesResults)) |> {
             instrs += new instructions.Label(handler)
@@ -56,7 +56,7 @@ private [deepembedding] final class ChainPost[A](p: StrictParsley[A], op: Strict
         val body = state.freshLabel()
         val handler = state.freshLabel()
         suspend(p.codeGen[M, R](producesResults)) >> {
-            instrs += new instructions.PushHandler(handler)
+            instrs += new instructions.PushHandlerAndCheck(handler)
             instrs += new instructions.Label(body)
             suspend(op.codeGen[M, R](producesResults)) |> {
                 instrs += new instructions.Label(handler)
@@ -74,7 +74,7 @@ private [deepembedding] final class ChainPre[A](p: StrictParsley[A], op: StrictP
         val body = state.freshLabel()
         val handler = state.freshLabel()
         if (producesResults) instrs += new instructions.Push(identity[Any] _)
-        instrs += new instructions.PushHandler(handler)
+        instrs += new instructions.PushHandlerAndCheck(handler)
         instrs += new instructions.Label(body)
         suspend(op.codeGen[M, R](producesResults)) >> {
             instrs += new instructions.Label(handler)
@@ -95,7 +95,7 @@ private [deepembedding] final class Chainl[A, B](init: StrictParsley[B], p: Stri
         val body = state.freshLabel()
         val handler = state.freshLabel()
         suspend(init.codeGen[M, R](producesResults)) >> {
-            instrs += new instructions.PushHandler(handler)
+            instrs += new instructions.PushHandlerAndCheck(handler)
             instrs += new instructions.Label(body)
             suspend(op.codeGen[M, R](producesResults)) >>
             suspend(p.codeGen[M, R](producesResults)) |> {
@@ -145,7 +145,7 @@ private [deepembedding] final class SepEndBy1[A, C](p: StrictParsley[A], sep: St
         val handler2 = state.freshLabel()
         instrs += new instructions.Fresh(factory.newBuilder)
         instrs += new instructions.Push(false) // this tracks if p has been consumed
-        instrs += new instructions.PushHandler(handler1)
+        instrs += new instructions.PushHandlerAndCheck(handler1)
         instrs += new instructions.Label(body)
         suspend(p.codeGen[M, R](producesResults = true)) >> {
             instrs += new instructions.PushHandler(handler2)

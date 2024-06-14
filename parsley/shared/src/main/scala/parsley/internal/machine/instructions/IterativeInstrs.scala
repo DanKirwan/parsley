@@ -11,6 +11,7 @@ import parsley.XAssert._
 
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
+import parsley.internal.machine.stacks.Stack.StackExt
 
 private [internal] final class Many(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
@@ -21,11 +22,16 @@ private [internal] final class Many(var label: Int) extends InstrWithLabel {
             ctx.pc = label
         }
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
-        else ctx.catchNoConsumed(ctx.handlers.check) {
-            ctx.handlers = ctx.handlers.tail
-            ctx.makeErrorAccumulator()
-            ctx.exchangeAndContinue(ctx.stack.peek[mutable.Builder[Any, Any]].result())
-        }
+        else {
+            val check = ctx.check
+            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.catchNoConsumed(check) {
+                ctx.handlers = ctx.handlers.tail
+                ctx.makeErrorAccumulator()
+                ctx.exchangeAndContinue(ctx.stack.peek[mutable.Builder[Any, Any]].result())
+            }
+        } 
+
     }
     // $COVERAGE-OFF$
     override def toString: String = s"Many($label)"
@@ -40,10 +46,14 @@ private [internal] final class SkipMany(var label: Int) extends InstrWithLabel {
             ctx.pc = label
         }
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
-        else ctx.catchNoConsumed(ctx.handlers.check) {
-            ctx.handlers = ctx.handlers.tail
-            ctx.makeErrorAccumulator()
-            ctx.inc()
+        else {
+            val check = ctx.check
+            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.catchNoConsumed(check) {
+                ctx.handlers = ctx.handlers.tail
+                ctx.makeErrorAccumulator()
+                ctx.inc()
+            }
         }
     }
     // $COVERAGE-OFF$
@@ -60,10 +70,14 @@ private [internal] final class ChainPost(var label: Int) extends InstrWithLabel 
             ctx.pc = label
         }
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
-        else ctx.catchNoConsumed(ctx.handlers.check) {
-            ctx.handlers = ctx.handlers.tail
-            ctx.makeErrorAccumulator()
-            ctx.inc()
+        else {
+            val check = ctx.check
+            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.catchNoConsumed(check) {
+                ctx.handlers = ctx.handlers.tail
+                ctx.makeErrorAccumulator()
+                ctx.inc()
+            }
         }
     }
     // $COVERAGE-OFF$
@@ -80,10 +94,15 @@ private [internal] final class ChainPre(var label: Int) extends InstrWithLabel {
             ctx.pc = label
         }
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
-        else ctx.catchNoConsumed(ctx.handlers.check) {
-            ctx.handlers = ctx.handlers.tail
-            ctx.makeErrorAccumulator()
-            ctx.inc()
+        else {
+            val check = ctx.check
+            
+            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.catchNoConsumed(check) {
+                ctx.handlers = ctx.handlers.tail
+                ctx.makeErrorAccumulator()
+                ctx.inc()
+            }
         }
     }
     // $COVERAGE-OFF$
@@ -100,10 +119,14 @@ private [internal] final class Chainl(var label: Int) extends InstrWithLabel {
             ctx.pc = label
         }
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
-        else ctx.catchNoConsumed(ctx.handlers.check) {
-            ctx.handlers = ctx.handlers.tail
-            ctx.makeErrorAccumulator()
-            ctx.inc()
+        else {
+            val check = ctx.check
+            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.catchNoConsumed(check) {
+                ctx.handlers = ctx.handlers.tail
+                ctx.makeErrorAccumulator()
+                ctx.inc()
+            }
         }
     }
     // $COVERAGE-OFF$
@@ -133,6 +156,7 @@ private [internal] final class ChainrOpHandler(wrap: Any => Any) extends Instr {
         ensureHandlerInstruction(ctx)
         ctx.catchNoConsumed(ctx.handlers.check) {
             ctx.handlers = ctx.handlers.tail    
+            
             ctx.makeErrorAccumulator()        
             val y = ctx.stack.upop()
             ctx.exchangeAndContinue(ctx.stack.peek[Any => Any](wrap(y)))
@@ -190,7 +214,9 @@ private [internal] object SepEndBy1SepHandler extends Instr {
         assert(ctx.instrs(ctx.pc + 1) eq SepEndBy1WholeHandler, "the next instruction from the sep handler must be the whole handler")
         assert(ctx.handlers.pc == ctx.pc + 1, "the top-most handler must be the whole handler in the sep handler")
         ctx.handlers = ctx.handlers.tail
+        ctx.check = if(ctx.handlers.isEmpty) 0 else ctx.handlers.check
         ctx.inc()
+        // We're skipping the next handler
         SepEndBy1Handlers.pushAccWhenCheckValidAndContinue(ctx, check, acc, readP = true)
     }
 
@@ -202,8 +228,9 @@ private [internal] object SepEndBy1SepHandler extends Instr {
 private [internal] object SepEndBy1WholeHandler extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        val check = ctx.handlers.check
+        val check = ctx.check
         ctx.handlers = ctx.handlers.tail
+        ctx.check = if(ctx.handlers.isEmpty) 0 else ctx.handlers.check
         val readP = ctx.stack.pop[Boolean]()
         SepEndBy1Handlers.pushAccWhenCheckValidAndContinue(ctx, check, ctx.stack.peek[mutable.Builder[Any, Any]], readP)
     }

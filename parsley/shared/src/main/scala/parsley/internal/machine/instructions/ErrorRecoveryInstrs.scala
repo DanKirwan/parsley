@@ -65,7 +65,7 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int) extends I
               ctx.stack.drop(stackToDiscard)
             }
 
-            handler.pc = label
+            ctx.setHandlerPC(label)
             ctx.good = true
             ctx.inc()
           }

@@ -16,9 +16,9 @@ private [machine] final class HandlerStack(
     val error: DefuncError,
     val isEmptyError: Boolean,
     val recoveredErrors: List[DefuncError],
-    var pc: Int,
+    val pc: Int,
     val stacksz: Int,
-    var check: Int,
+    val check: Int,
     val tail: HandlerStack)
 private [machine] object HandlerStack extends Stack[HandlerStack] {
     implicit val inst: Stack[HandlerStack] = this

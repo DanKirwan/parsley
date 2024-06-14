@@ -258,7 +258,7 @@ private [instructions] abstract class FilterLike extends Instr {
     }
 
     final def fail(ctx: Context, x: Any): Unit = {
-        ctx.handlers.pc = bad
+        ctx.setHandlerPC(bad)
         ctx.exchangeAndContinue((x, ctx.offset - ctx.states.offset))
     }
 }

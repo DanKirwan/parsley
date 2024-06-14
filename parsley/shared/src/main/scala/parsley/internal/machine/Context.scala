@@ -64,6 +64,9 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
     private [machine] var running: Boolean = true
     /** Stack of handlers, which track the call depth, program counter and stack size of error handlers */
     private [machine] var handlers: HandlerStack = Stack.empty
+
+    private [machine] var check: Int = 0
+
     /** Current offset into program instruction buffer */
     private [machine] var pc: Int = 0
     /** Current line number */
@@ -312,7 +315,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     // End: Error Recovery
     private [machine] def updateCheckOffset() = {
-        this.handlers.check = this.offset
+        this.check = this.offset
     }
 
 
@@ -573,7 +576,27 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         isEmptyError = true
         isLiveError = false
         recoveredErrors = List.empty
-  
+    }
+
+
+    /**
+      * Updates the head of the handler stack immutably
+      * although this may look inefficient, it only occurs within filtering and means
+      * handler positions don't need to be udpated regularly
+      * @param label new instruction label
+      */
+    private [machine] def setHandlerPC(label: Int): Unit = {
+        handlers = new HandlerStack(
+            handlers.calls,
+            handlers.instrs,
+            handlers.error,
+            handlers.isEmptyError,
+            handlers.recoveredErrors,
+            label,
+            handlers.stacksz,
+            handlers.check,
+            handlers.tail
+        )
     }
 
     private [machine] def saveState(): Unit = states = new StateStack(offset, line, col, states)
