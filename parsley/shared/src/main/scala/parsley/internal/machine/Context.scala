@@ -567,13 +567,12 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private [machine] def pushHandler(label: Int): Unit = {
         // we don't include error unless necessary to help GC
-        handlers = new HandlerStack(calls, instrs, UnitError, true, List.empty, label, stack.usize, offset, handlers)
-  
+        handlers = new HandlerStack(calls, instrs, UnitError, true, List.empty, label, stack.usize, offset, check, handlers)
     }
 
     private [machine] def pushHandlerAndErrors(label: Int): Unit = {
         // we don't include error unless necessary to help GC
-        handlers = new HandlerStack(calls, instrs, errorState, false, this.recoveredErrors, label, stack.usize, offset, handlers)
+        handlers = new HandlerStack(calls, instrs, errorState, false, this.recoveredErrors, label, stack.usize, offset, check, handlers)
         errorState = UnitError
         isEmptyError = true
         isLiveError = false
@@ -596,7 +595,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             handlers.recoveredErrors,
             label,
             handlers.stacksz,
-            handlers.check,
+            handlers.offset,
+            handlers.prevCheck,
             handlers.tail
         )
     }

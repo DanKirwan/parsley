@@ -59,7 +59,7 @@ private [internal] final class RecoverWith[A](x: A) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         
-        ctx.catchNoConsumed(ctx.handlers.check) {
+        ctx.catchNoConsumed(ctx.handlers.offset) {
             ctx.makeErrorAccumulator()
 
             ctx.handlers = ctx.handlers.tail

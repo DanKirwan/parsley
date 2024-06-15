@@ -148,7 +148,7 @@ private [deepembedding] final class SepEndBy1[A, C](p: StrictParsley[A], sep: St
         instrs += new instructions.PushHandlerAndCheck(handler1)
         instrs += new instructions.Label(body)
         suspend(p.codeGen[M, R](producesResults = true)) >> {
-            instrs += new instructions.PushHandler(handler2)
+            instrs += new instructions.PushHandlerAndCheck(handler2)
             suspend(sep.codeGen[M, R](producesResults = false)) |> {
                 instrs += new instructions.SepEndBy1Jump(body) // will set bool to true
                 instrs += new instructions.Label(handler2)

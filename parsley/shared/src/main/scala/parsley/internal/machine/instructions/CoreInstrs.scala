@@ -288,8 +288,8 @@ private [internal] object Catch extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         val handler = ctx.handlers
-        ctx.catchNoConsumed(handler.check) {
-            assume(handler.stacksz == ctx.stack.usize && handler.check == ctx.offset,
+        ctx.catchNoConsumed(handler.offset) {
+            assume(handler.stacksz == ctx.stack.usize && handler.offset == ctx.offset,
                 // && handler.hints == ctx.hints && handler.hintOffset == ctx.currentHintsValidOffset,
                 "the handler can be re-used")
             ctx.makeErrorAccumulator()

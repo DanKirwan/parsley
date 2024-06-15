@@ -24,7 +24,7 @@ private [internal] final class Many(var label: Int) extends InstrWithLabel {
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
         else {
             val check = ctx.check
-            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.check = ctx.handlers.prevCheck
             ctx.catchNoConsumed(check) {
                 ctx.handlers = ctx.handlers.tail
                 ctx.makeErrorAccumulator()
@@ -48,7 +48,7 @@ private [internal] final class SkipMany(var label: Int) extends InstrWithLabel {
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
         else {
             val check = ctx.check
-            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.check = ctx.handlers.prevCheck
             ctx.catchNoConsumed(check) {
                 ctx.handlers = ctx.handlers.tail
                 ctx.makeErrorAccumulator()
@@ -72,7 +72,7 @@ private [internal] final class ChainPost(var label: Int) extends InstrWithLabel 
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
         else {
             val check = ctx.check
-            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.check = ctx.handlers.prevCheck
             ctx.catchNoConsumed(check) {
                 ctx.handlers = ctx.handlers.tail
                 ctx.makeErrorAccumulator()
@@ -97,7 +97,7 @@ private [internal] final class ChainPre(var label: Int) extends InstrWithLabel {
         else {
             val check = ctx.check
             
-            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.check = ctx.handlers.prevCheck
             ctx.catchNoConsumed(check) {
                 ctx.handlers = ctx.handlers.tail
                 ctx.makeErrorAccumulator()
@@ -121,7 +121,7 @@ private [internal] final class Chainl(var label: Int) extends InstrWithLabel {
         // If the head of input stack is not the same size as the head of check stack, we fail to next handler
         else {
             val check = ctx.check
-            ctx.check = if(!ctx.handlers.tail.isEmpty) ctx.handlers.tail.check else 0
+            ctx.check = ctx.handlers.prevCheck
             ctx.catchNoConsumed(check) {
                 ctx.handlers = ctx.handlers.tail
                 ctx.makeErrorAccumulator()
@@ -154,7 +154,7 @@ private [internal] final class ChainrJump(var label: Int) extends InstrWithLabel
 private [internal] final class ChainrOpHandler(wrap: Any => Any) extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        ctx.catchNoConsumed(ctx.handlers.check) {
+        ctx.catchNoConsumed(ctx.handlers.offset) {
             ctx.handlers = ctx.handlers.tail    
             
             ctx.makeErrorAccumulator()        
@@ -179,6 +179,7 @@ private [internal] final class SepEndBy1Jump(var label: Int) extends InstrWithLa
         ctx.stack.peek[mutable.Builder[Any, Any]] += x
         ctx.stack.upush(true)
         // pop second handler and jump
+        ctx.check = ctx.handlers.prevCheck
         ctx.handlers = ctx.handlers.tail
         ctx.updateCheckOffset()
         ctx.pc = label
@@ -203,7 +204,8 @@ private [instructions] object SepEndBy1Handlers {
 private [internal] object SepEndBy1SepHandler extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
-        val check = ctx.handlers.check
+        val check = ctx.check
+        ctx.check = ctx.handlers.prevCheck
         ctx.handlers = ctx.handlers.tail
         // p succeeded and sep didn't, so push p and fall-through to the whole handler
         val x = ctx.stack.upop()
@@ -213,8 +215,8 @@ private [internal] object SepEndBy1SepHandler extends Instr {
         // discard the other handler and increment so that we are sat on the other handler
         assert(ctx.instrs(ctx.pc + 1) eq SepEndBy1WholeHandler, "the next instruction from the sep handler must be the whole handler")
         assert(ctx.handlers.pc == ctx.pc + 1, "the top-most handler must be the whole handler in the sep handler")
+        if(ctx.offset == check) ctx.check = ctx.handlers.prevCheck
         ctx.handlers = ctx.handlers.tail
-        ctx.check = if(ctx.handlers.isEmpty) 0 else ctx.handlers.check
         ctx.inc()
         // We're skipping the next handler
         SepEndBy1Handlers.pushAccWhenCheckValidAndContinue(ctx, check, acc, readP = true)
@@ -229,8 +231,8 @@ private [internal] object SepEndBy1WholeHandler extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         val check = ctx.check
+        ctx.check = ctx.handlers.prevCheck
         ctx.handlers = ctx.handlers.tail
-        ctx.check = if(ctx.handlers.isEmpty) 0 else ctx.handlers.check
         val readP = ctx.stack.pop[Boolean]()
         SepEndBy1Handlers.pushAccWhenCheckValidAndContinue(ctx, check, ctx.stack.peek[mutable.Builder[Any, Any]], readP)
     }

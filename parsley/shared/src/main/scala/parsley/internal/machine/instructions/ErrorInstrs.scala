@@ -34,7 +34,7 @@ private [internal] final class RelabelErrorAndFail(labels: Iterable[String]) ext
         ensureHandlerInstruction(ctx)
 
         assert(ctx.isLiveError, "Cannot relabel if we don't have a live error");
-        ctx.errorState = ctx.errorState.label(labels, ctx.handlers.check)
+        ctx.errorState = ctx.errorState.label(labels, ctx.handlers.offset)
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
@@ -55,12 +55,12 @@ private [internal] class RelabelExit(labels: Iterable[String]) extends ScopeExit
             if(isHide) {
                 ctx.clearError()
             }
-            else if(ctx.offset == ctx.handlers.check) ctx.errorState = ctx.errorState.label(labels, ctx.offset)
+            else if(ctx.offset == ctx.handlers.offset) ctx.errorState = ctx.errorState.label(labels, ctx.offset)
         }
 
         
 
-        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.label(labels, ctx.handlers.check))
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.label(labels, ctx.handlers.offset))
     }
     // $COVERAGE-OFF$
     override def toString: String = "RelabelExit"
@@ -101,7 +101,7 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
         ensureHandlerInstruction(ctx)
 
         assert(ctx.isLiveError, "Cannot apply reason if we don't have a live error");
-        ctx.errorState = ctx.errorState.withReason(reason, ctx.handlers.check)
+        ctx.errorState = ctx.errorState.withReason(reason, ctx.handlers.offset)
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
@@ -122,8 +122,8 @@ private [internal] class ApplyReasonAndFail(reason: String) extends Instr {
 private [internal] class ReasonExit(reason: String, propagate: Boolean) extends ScopeExit(true, false) {
 
     override def cleanup(ctx: Context): Unit = {
-        if(propagate && !ctx.isEmptyError) ctx.errorState = ctx.errorState.withReason(reason, ctx.handlers.check)
-        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.withReason(reason, ctx.handlers.check))
+        if(propagate && !ctx.isEmptyError) ctx.errorState = ctx.errorState.withReason(reason, ctx.handlers.offset)
+        ctx.recoveredErrors = ctx.recoveredErrors.map(e => e.withReason(reason, ctx.handlers.offset))
     }
     // $COVERAGE-OFF$
     override def toString: String = s"ReasonExit($reason)"
@@ -230,7 +230,7 @@ private [internal] object SetLexicalAndFail extends Instr {
     override def apply(ctx: Context): Unit = {
         ensureHandlerInstruction(ctx)
         assert(ctx.isLiveError, "Cannot set lexical if we don't have a live error");
-        ctx.errorState = ctx.errorState.markAsLexical(ctx.handlers.check)
+        ctx.errorState = ctx.errorState.markAsLexical(ctx.handlers.offset)
         ctx.popAndMergeErrors()
         ctx.handlers = ctx.handlers.tail
         ctx.fail()
@@ -243,7 +243,7 @@ private [internal] object SetLexicalAndFail extends Instr {
 
 private [internal] object LexicalExit extends ScopeExit(true, false) {
   override def cleanup(ctx: Context): Unit = {
-    ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.markAsLexical(ctx.handlers.check))
+    ctx.recoveredErrors = ctx.recoveredErrors.map(x => x.markAsLexical(ctx.handlers.offset))
   }
 }
 

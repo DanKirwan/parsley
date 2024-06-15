@@ -18,7 +18,8 @@ private [machine] final class HandlerStack(
     val recoveredErrors: List[DefuncError],
     val pc: Int,
     val stacksz: Int,
-    val check: Int,
+    val offset: Int,
+    val prevCheck: Int,
     val tail: HandlerStack)
 private [machine] object HandlerStack extends Stack[HandlerStack] {
     implicit val inst: Stack[HandlerStack] = this
