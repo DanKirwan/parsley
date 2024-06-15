@@ -25,6 +25,9 @@ sealed abstract class Result[+Err, +A] {
     def fold[B](ferr: Err => B, fa: A => B): B = this match {
         case Success(x)   => fa(x)
         case Failure(msg) => ferr(msg)
+        case MultiFailure(fatal :: errs) => ferr(fatal)
+        case Recovered(x, recoveredErrors) => fa(x) 
+        case MultiFailure(Nil) => throw new Exception("Cannot fold empty MultiFailure")
     }
 
     /** Executes the procedure `f` if this is a `Success`. Otherwise, do nothing.
@@ -42,6 +45,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def foreach[U](f: A => U): Unit = this match {
         case Success(x) => f(x): @nowarn
+        case Recovered(x, _) => f(x): @nowarn
         case _          => ()
     }
 
@@ -73,6 +77,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def orElse[B >: A, Errʹ >: Err](alternative: =>Result[Errʹ, B]): Result[Errʹ, B] = this match {
         case Success(_) => this
+        case Recovered(_, _) => this
         case _          => alternative
     }
 
@@ -92,6 +97,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def forall(f: A => Boolean): Boolean = this match {
         case Success(x) => f(x)
+        case Recovered(x, _) => f(x)
         case _          => true
     }
 
@@ -102,6 +108,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def exists(p: A => Boolean): Boolean = this match {
         case Success(x) => p(x)
+        case Recovered(x, _) => p(x)
         case _          => false
     }
 
@@ -113,6 +120,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def flatMap[B, Errʹ >: Err](f: A => Result[Errʹ, B]): Result[Errʹ, B] = this match {
         case Success(x) => f(x)
+        case Recovered(x, _) => f(x)
         case _          => this.asInstanceOf[Result[Err, B]]
     }
 
@@ -131,6 +139,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def map[B](f: A => B): Result[Err, B] = this match {
         case Success(x) => Success(f(x))
+        case Recovered(x, errs) => Recovered(f(x), errs)
         case _          => this.asInstanceOf[Result[Err, B]]
     }
 
@@ -143,6 +152,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def filterOrElse[Errʹ >: Err](p: A => Boolean, msg: =>Errʹ): Result[Errʹ, A] = this match {
         case Success(x) if !p(x) => Failure(msg)
+        case Recovered(x, _) if !p(x) => Failure(msg)
         case _                   => this
     }
 
@@ -152,6 +162,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def toSeq: Seq[A] = this match {
         case Success(x) => Seq(x)
+        case Recovered(x, _) => Seq(x)
         case _          => Seq.empty
     }
 
@@ -161,6 +172,7 @@ sealed abstract class Result[+Err, +A] {
       */
     def toOption: Option[A] = this match {
         case Success(x) => Some(x)
+        case Recovered(x, _) => Some(x)
         case _          => None
     }
 
@@ -170,7 +182,9 @@ sealed abstract class Result[+Err, +A] {
       */
     def toTry: Try[A] = this match {
         case Success(x)   => TSuccess(x)
+        case Recovered(x, _)   => TSuccess(x)
         case Failure(msg) => TFailure(new Exception(s"ParseError: $msg"))
+        case MultiFailure(errs) => TFailure(new Exception(s"ParseErrors: ${errs.mkString(", ")}"))
     }
 
     /** Converts the `Result` into a `Either` where `Failure` maps to a `Left[Err]`.
@@ -179,8 +193,26 @@ sealed abstract class Result[+Err, +A] {
       */
     def toEither: Either[Err, A] = this match {
         case Success(x)   => Right(x)
+        case Recovered(x, _)   => Right(x)
         case Failure(msg) => Left(msg)
+        case MultiFailure(msg :: _) => Left(msg)
+        case MultiFailure(Nil) => throw new Exception("Cannot map empty MultiFailure to either")
     }
+
+
+    
+    /** Collects all errors that were thrown in the process of this parse including recovered errors
+      *
+      * @since 5.?
+      */
+    def toErrors: Seq[Err] = this match {
+      case Recovered(x, recoveredErrors) => recoveredErrors.toSeq
+      case MultiFailure(errs) => errs.toSeq
+      case Failure(err) => Seq(err)
+      case _ => Seq.empty
+    }
+
+    
 
     /** Returns `true` if this is a `Success`, `false` otherwise.
       *
@@ -224,7 +256,7 @@ final case class Failure[Err](msg: Err) extends Result[Err, Nothing] {
 }
 
 
-final case class Recovered[A, Err](x: A, val recoveredErrors: List[Err]) extends Result[Nothing, A] {
+final case class Recovered[A, Err](x: A, val recoveredErrors: List[Err]) extends Result[Err, A] {
   override def isSuccess: Boolean = true
   /** @inheritdoc */
   override def isFailure: Boolean = false

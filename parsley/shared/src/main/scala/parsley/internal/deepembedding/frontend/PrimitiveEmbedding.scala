@@ -32,8 +32,10 @@ private [parsley] final class Look[A](p: LazyParsley[A]) extends Unary[A, A](p) 
 
 private [parsley] final class RecoverWith[A,B >: A](p: LazyParsley[A], r: LazyParsley[B], eager: Boolean) extends Binary[A, B, A](p, r) {
     override def make(p: StrictParsley[A], r: StrictParsley[B]): StrictParsley[A] = new backend.RecoverWith(p, r, eager)
+    // $COVERAGE-OFF$
     private[parsley] var debugName: String = "recoverWith"
     def visit[T, U[+_]](visitor: LazyParsleyIVisitor[T,U], context: T): U[A] = visitor.visit(this, context)(p, r)
+    // $COVERAGE-ON$
 }
 
 private [parsley] final class NotFollowedBy[A](p: LazyParsley[A]) extends Unary[A, Unit](p) {
