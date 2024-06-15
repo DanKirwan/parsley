@@ -16,7 +16,7 @@ val releaseFlags = Seq("-Xdisable-assertions", "-opt:l:method,inline", "-opt-inl
 val noReleaseFlagsScala3 = true // maybe some day this can be turned off...
 
 inThisBuild(List(
-  version := "5.0-final-recovery-and-optimisations-SNAPSHOT",
+  version := "5.0-final-recovery-and-optimisations-o-lazy-state-stack-1-SNAPSHOT",
   tlBaseVersion := "5.0",
   organization := "com.github.j-mie6",
   organizationName := "Parsley Contributors <https://github.com/j-mie6/Parsley/graphs/contributors>",
@@ -53,7 +53,7 @@ lazy val commonSettings = Seq(
 
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oI"),
 
-  
+  scalacOptions ++= releaseFlags,
   scalacOptions ++= {
     if (!isSnapshot.value && !(noReleaseFlagsScala3 && scalaBinaryVersion.value == "3")) releaseFlags else Seq.empty
   },

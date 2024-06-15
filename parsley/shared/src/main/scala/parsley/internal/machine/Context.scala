@@ -20,7 +20,7 @@ import parsley.internal.machine.errors.{ClassicFancyError, DefuncError, DefuncHi
                                         ErrorItemBuilder, ExpectedError, ExpectedErrorWithReason, UnexpectedError, EmptyError}
 
 import instructions.Instr
-import stacks.{ArrayStack, CallStack, ErrorStack, ErrorStateStack, HandlerStack, RecoveryStack, Stack, StateStack}, Stack.StackExt
+import stacks.{ArrayStack, CallStack, ErrorStack, ErrorStateStack, HandlerStack, RecoveryStack, Stack, StateStack, LazyCopyStack}, Stack.StackExt
 import parsley.internal.machine.errors.ErrorState
 import parsley.internal.machine.errors.NoError
 import parsley.internal.machine.errors.LiveError
@@ -49,7 +49,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
     private val UnitError = new EmptyError(0, 0) 
     /** This is the operand stack, where results go to live  */
-    private [machine] var stack: ArrayStack[Any] = new ArrayStack()
+    private [machine] var stack: LazyCopyStack[Any] = new LazyCopyStack()
     /** Current offset into the input */
     private [machine] var offset: Int = 0
     /** The length of the input, stored for whatever reason */
