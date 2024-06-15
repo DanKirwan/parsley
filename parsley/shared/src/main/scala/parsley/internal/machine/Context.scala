@@ -229,7 +229,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
             this.calls, this.states, oldRegs, this.instrs,
             this.errorState, this.recoveredErrors,
             this.parkedError, this.recoveryDepth,
-            this.pc, this.offset)
+            this.pc, this.offset, this.check)
             
         traverseCalleSaves(this.calls, _.addRecoveryPoint(recoveryPoint))
         applyToCalleeSaves(this.instrs, _.addRecoveryPoint(recoveryPoint))
@@ -272,7 +272,8 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
 
         this.offset = recoveryPoint.offset
         this.pc = recoveryPoint.pc
-
+        this.check = recoveryPoint.check
+        
         this.parkedError = recoveryPoint.parkedError
         this.recoveryDepth = recoveryPoint.recoveryDepth
 
