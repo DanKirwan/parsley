@@ -55,7 +55,7 @@ private [machine] final class ArrayStack[A](initialSize: Int = ArrayStack.Defaul
 
     override def clone: ArrayStack[A] = {
         val copy = new ArrayStack[A](size)
-        copy.array = this.array.clone()
+        copy.array =  this.array.slice(0, size).clone()
         copy.sp = this.sp
         copy
     }

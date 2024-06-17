@@ -21,10 +21,9 @@ private object InternalCopyStack {
 // Designed to replace the operational stack
 // Since elements are of type Any, this serves as a optimised implementation
 // Its success may result in the deprecation of the Stack class in favour of a generic version of this!
-private [machine] final class LazyCopyStack[A](chunkSize: Int = LazyCopyStack.DefaultChunkSize) {
+private [machine] final class LazyCopyStack[A]() {
     private var array: ArrayStack[A] = new ArrayStack()
     private var stack: InternalCopyStack[A] = new InternalCopyStack[A](null, 0, null)
-    val chunkCheck = chunkSize - 1
 
     private def catchEmpty[X]()(handler: => X): X = {
         while(array.isEmpty) this.popStack()
@@ -33,10 +32,6 @@ private [machine] final class LazyCopyStack[A](chunkSize: Int = LazyCopyStack.De
 
     def push(x: A): Unit = {
         array.push(x)
-        if(array.usize == chunkCheck) {
-            stack = new InternalCopyStack[A](array, stack.size + chunkSize, stack)
-            array = new ArrayStack()
-        }
     }
 
 
@@ -57,23 +52,17 @@ private [machine] final class LazyCopyStack[A](chunkSize: Int = LazyCopyStack.De
     def peek[B <: A]: B = catchEmpty() {array.peek[B]}
 
     def drop(x: Int): Unit = {
+        var remaining = x
+        while(remaining > array.size && remaining != 0) {
+            remaining -= array.size
+            popStack()
+        } 
 
-        if(x > array.size) {
-            val parentX = x - array.size
-            val stacksToPop = parentX / chunkSize
-            for(x <- (0 to stacksToPop)) {
-                popStack()
-            }
-
-            val remaining = parentX % chunkSize
-            array.drop(remaining)
-
-        } else {
-            array.drop(x)
-        }
+        array.drop(remaining)
     }
 
     private def popStack(): Unit = {
+        assert(array.isEmpty, "Cannot pop stack with existing elements")
         // remove the top stack, make and set a copy of the data of the next one
         array = stack.saved
         stack.saved = stack.saved.clone()
@@ -88,12 +77,15 @@ private [machine] final class LazyCopyStack[A](chunkSize: Int = LazyCopyStack.De
     // $COVERAGE-ON$
 
     override def clone: LazyCopyStack[A] = {
-        val copy = new LazyCopyStack[A](chunkSize)
+        if(!array.isEmpty) {
+            stack = new InternalCopyStack[A](array, stack.size + array.size, stack)
+            array = new ArrayStack()
+        }
+
+
+        assert(array.isEmpty, "cannot get lazy copy without empty head array")
+        val copy = new LazyCopyStack[A]()
         copy.stack = this.stack
-        copy.array = this.array.clone()
         copy
     }
-}
-private [machine] object LazyCopyStack {
-    final val DefaultChunkSize = 8
 }

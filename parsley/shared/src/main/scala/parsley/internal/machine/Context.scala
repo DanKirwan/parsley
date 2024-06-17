@@ -16,15 +16,13 @@ import parsley.errors.ErrorBuilder
 
 import parsley.internal.diagnostics.RegisterOutOfBoundsException
 import parsley.internal.errors.{CaretWidth, ExpectItem, LineBuilder, UnexpectDesc}
-import parsley.internal.machine.errors.{ClassicFancyError, DefuncError, DefuncHints, EmptyHints,
-                                        ErrorItemBuilder, ExpectedError, ExpectedErrorWithReason, UnexpectedError, EmptyError}
+import parsley.internal.machine.errors.{ClassicFancyError, DefuncError,
+                                        ErrorItemBuilder, ExpectedError, 
+                                        ExpectedErrorWithReason, UnexpectedError, EmptyError}
 
 import instructions.Instr
-import stacks.{ArrayStack, CallStack, ErrorStack, ErrorStateStack, HandlerStack, RecoveryStack, Stack, StateStack, LazyCopyStack}, Stack.StackExt
-import parsley.internal.machine.errors.ErrorState
+import stacks.{CallStack, HandlerStack, RecoveryStack, Stack, StateStack, LazyCopyStack}, Stack.StackExt
 import parsley.internal.machine.errors.NoError
-import parsley.internal.machine.errors.LiveError
-import parsley.internal.machine.errors.AccumulatorError
 import parsley.Recovered
 import parsley.MultiFailure
 import parsley.internal.machine.instructions.CalleeSave
@@ -285,6 +283,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         if(debug) println("recovering to furthest point")
 
         assert(!good, "Recovery not possible if context not in a recovery state")
+        // Weird recovery case optimisation to previous points
         if(this.recoveryStack.recoveryOffset > this.offset) {
             if(this.recoveryStack.tail.isEmpty) {
                 this.running = false
