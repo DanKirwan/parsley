@@ -13,9 +13,7 @@ import parsley.token.errors.LabelConfig
 import parsley.internal.errors.ExpectItem
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
-import parsley.internal.machine.errors.{EmptyHints, ExpectedError}
-import parsley.internal.machine.stacks.ErrorStack
-import parsley.internal.machine.stacks.Stack.StackExt
+import parsley.internal.machine.errors.{ExpectedError}
 
 private [internal] final class Lift1(f: Any => Any) extends Instr {
     override def apply(ctx: Context): Unit = {
@@ -125,7 +123,7 @@ private [internal] final class JumpTable(jumpTable: mutable.LongMap[(Int, Iterab
         // FIXME: the more appropriate way of demanding input may be to pick 1 character, for same rationale with StringTok
         val newErr = new ExpectedError(ctx.offset, errorItems, unexpectedWidth = size);
         assert(!ctx.isLiveError, "Cannot do jump table with existing errors")
-        ctx.pushAccumulatorError(newErr, ctx.offset)
+        ctx.pushAccumulatorError(newErr)
     }
 
     override def relabel(labels: Array[Int]): this.type = {

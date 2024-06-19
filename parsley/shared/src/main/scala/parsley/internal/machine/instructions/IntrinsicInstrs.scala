@@ -13,7 +13,6 @@ import parsley.token.errors.LabelConfig
 import parsley.internal.errors.{EndOfInput, ExpectDesc, ExpectItem}
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
-import parsley.internal.machine.errors.NoError
 
 private [internal] final class Lift2(f: (Any, Any) => Any) extends Instr {
     override def apply(ctx: Context): Unit = {
@@ -84,7 +83,6 @@ private [internal] final class StringTok private (s: String, errorItem: Iterable
     private [this] val sz = s.length
     private [this] val codePointLength = s.codePointCount(0, sz)
 
-    // TODO (Col and Line stuff)
     @tailrec private def go(ctx: Context, i: Int, j: Int): Unit = {
         if (j < sz && i < ctx.inputsz && ctx.input.charAt(i) == s.charAt(j)) go(ctx, i + 1, j + 1)
         else if (j < sz) {
@@ -96,7 +94,6 @@ private [internal] final class StringTok private (s: String, errorItem: Iterable
             // output less confusing in the string case in particular.
         }
         else {
-            // TODO Remove
             ctx.offset = i
             ctx.inc()
         }

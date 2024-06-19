@@ -169,7 +169,6 @@ private [internal] final class LogErrBegin(var label: Int, override val name: St
         // This should print out a classic opening line, followed by the currently in-flight hints
         // println(preludeString(Enter, ctx, s": current hints are ${inFlightHints.map(_.formatExpect)} (valid at offset ${ctx.currentHintsValidOffset})"))
         ctx.debuglvl += 1
-        // TODO (Dan) figure out how 
         // ctx.stack.push(ErrLogData(ctx.currentHintsValidOffset, inFlightHints))
         ctx.pushHandler(label)
         ctx.inc()

@@ -8,7 +8,6 @@ package parsley.internal.machine.stacks
 
 import parsley.internal.machine.errors.DefuncError
 import parsley.internal.machine.instructions.Instr
-import parsley.internal.machine.errors.ErrorState
 
 private [machine] final class HandlerStack(
     val calls: CallStack,
@@ -25,7 +24,6 @@ private [machine] object HandlerStack extends Stack[HandlerStack] {
     implicit val inst: Stack[HandlerStack] = this
     type ElemTy = (Int, Int)
     // $COVERAGE-OFF$
-    // TODO: needs to change
     override protected def show(x: ElemTy): String = {
         val (pc, stacksz) = x
         s"Handler:$pc(-${stacksz + 1})"

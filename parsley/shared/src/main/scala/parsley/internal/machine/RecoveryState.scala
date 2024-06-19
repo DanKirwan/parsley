@@ -1,6 +1,6 @@
 package parsley.internal.machine
 
-import stacks.{LazyCopyStack, CallStack,  ErrorStateStack, HandlerStack,  StateStack}
+import stacks.{LazyCopyStack, CallStack,  HandlerStack,  StateStack}
 import errors.DefuncError
 import instructions.Instr
 

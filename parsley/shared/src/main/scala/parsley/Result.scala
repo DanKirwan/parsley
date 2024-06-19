@@ -25,8 +25,8 @@ sealed abstract class Result[+Err, +A] {
     def fold[B](ferr: Err => B, fa: A => B): B = this match {
         case Success(x)   => fa(x)
         case Failure(msg) => ferr(msg)
-        case MultiFailure(fatal :: errs) => ferr(fatal)
-        case Recovered(x, recoveredErrors) => fa(x) 
+        case MultiFailure(fatal :: _) => ferr(fatal)
+        case Recovered(x, _) => fa(x) 
         case MultiFailure(Nil) => throw new Exception("Cannot fold empty MultiFailure")
     }
 
@@ -206,7 +206,7 @@ sealed abstract class Result[+Err, +A] {
       * @since 5.?
       */
     def toErrors: Seq[Err] = this match {
-      case Recovered(x, recoveredErrors) => recoveredErrors.toSeq
+      case Recovered(_, recoveredErrors) => recoveredErrors.toSeq
       case MultiFailure(errs) => errs.toSeq
       case Failure(err) => Seq(err)
       case _ => Seq.empty

@@ -9,7 +9,7 @@ import parsley.XAssert._
 
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
-import parsley.internal.machine.errors.{EmptyError, EmptyHints}
+import parsley.internal.machine.errors.{EmptyError}
 
 // Stack Manipulators
 private [internal] final class Push[A](x: A) extends Instr {
@@ -263,7 +263,6 @@ private [internal] final class Jump(var label: Int) extends InstrWithLabel {
 private [internal] final class JumpAndPopCheck(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
         ensureRegularInstruction(ctx)
-        // TODO: should this be mergeHints?
         ctx.handlers = ctx.handlers.tail
         ctx.pc = label
     }

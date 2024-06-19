@@ -40,7 +40,7 @@ private [internal] final class TokenSign(ty: SignType, plusPresence: PlusSignPre
             ctx.fail(new ExpectedError(ctx.offset, expecteds, 1))
         }
         else {
-            ctx.pushAccumulatorError(new ExpectedError(ctx.offset, expecteds, 1), ctx.offset)
+            ctx.pushAccumulatorError(new ExpectedError(ctx.offset, expecteds, 1))
             ctx.pushAndContinue(pos)
         }
     }

@@ -206,7 +206,6 @@ private [internal] final class TokenSkipComments private (
     // $COVERAGE-ON$
 }
 
-// TODO (Col and Line stuff?)
 private [internal] final class TokenNonSpecific(name: String, unexpectedIllegal: String => String)
                                                (start: Char => Boolean, letter: Char => Boolean, illegal: String => Boolean) extends Instr {
     private [this] final val expected = Some(new ExpectDesc(name))

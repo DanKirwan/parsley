@@ -11,7 +11,6 @@ import parsley.token.errors.LabelConfig
 import parsley.internal.errors.ExpectDesc
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
-import parsley.internal.machine.errors.NoError
 import scala.collection.mutable
 
 import parsley.internal.machine.RecoveryState

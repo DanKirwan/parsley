@@ -22,11 +22,9 @@ import parsley.internal.machine.errors.{ClassicFancyError, DefuncError,
 
 import instructions.Instr
 import stacks.{CallStack, HandlerStack, RecoveryStack, Stack, StateStack, LazyCopyStack}, Stack.StackExt
-import parsley.internal.machine.errors.NoError
 import parsley.Recovered
 import parsley.MultiFailure
 import parsley.internal.machine.instructions.CalleeSave
-import parsley.internal.machine.errors.NoError.isEmpty
 
 private [parsley] final class Context(private [machine] var instrs: Array[Instr],
                                       private [machine] val input: String,
@@ -465,8 +463,7 @@ private [parsley] final class Context(private [machine] var instrs: Array[Instr]
         this.isEmptyError = false
     }
     
-    // TODO (Dan) this isn't working properly - need to see if its an amend issue?
-    private [machine] def pushAccumulatorError(err: DefuncError, offset: Int): Unit = {
+    private [machine] def pushAccumulatorError(err: DefuncError): Unit = {
         assert(!isLiveError, "cannot push hints if we have a live error")
 
     

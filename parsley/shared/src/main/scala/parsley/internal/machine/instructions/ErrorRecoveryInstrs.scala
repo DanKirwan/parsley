@@ -50,8 +50,6 @@ private [internal] class SucceedWithoutRecoveryAndJump(var label: Int) extends I
           ctx.popAndMergeErrors()
           ctx.handlers = ctx.handlers.tail
           ctx.states = ctx.states.tail
-          // TODO This can be reset to 0 as it's used only as an optimization but 
-          // it could be set higher if we have more information on previous deepest errors
           ctx.fail()
         } else {
             ctx.forceRecovery = false

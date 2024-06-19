@@ -11,7 +11,6 @@ import parsley.XAssert._
 
 import parsley.internal.machine.Context
 import parsley.internal.machine.XAssert._
-import parsley.internal.machine.stacks.Stack.StackExt
 
 private [internal] final class Many(var label: Int) extends InstrWithLabel {
     override def apply(ctx: Context): Unit = {
